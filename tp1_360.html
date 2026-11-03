@@ -1,0 +1,170 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>TP1 - Panorama 360 (VR sans casque)</title>
+
+    <!-- Bibliothèque A-Frame -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.7.1/dist/aframe-v1.7.1.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            background: #111827;
+            color: white;
+        }
+
+        header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.55);
+        }
+
+        h1 {
+            font-size: 19px;
+            margin: 0 0 5px;
+        }
+
+        header p {
+            font-size: 13px;
+            margin: 0;
+            color: #d1d5db;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 15px;
+            left: 12px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .success {
+            color: #4ade80;
+        }
+
+        .error {
+            color: #f87171;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- =====================================
+         EN-TÊTE
+    ====================================== -->
+
+    <header>
+        <h1>Panorama 360° - VR sans casque</h1>
+
+        <p>
+            Tournez votre smartphone pour explorer l'environnement.
+        </p>
+    </header>
+
+
+    <!-- =====================================
+         SCÈNE 3D A-FRAME
+    ====================================== -->
+
+    <a-scene
+        vr-mode-ui="enabled: false"
+        stats
+        renderer="antialias: true">
+
+        <!-- Ressources -->
+        <a-assets>
+
+            <img
+                id="panorama"
+                crossorigin="anonymous"
+                src="https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/2294472375_24a3b8ef46_o.jpg">
+
+        </a-assets>
+
+
+        <!-- Environnement panoramique 360° -->
+        <a-sky
+            id="sky"
+            src="#panorama"
+            rotation="0 -90 0">
+        </a-sky>
+
+
+        <!-- Objet virtuel : cube rouge à 2 mètres -->
+        <a-box
+            position="0 1.2 -2"
+            color="#e74c3c"
+            width="0.5"
+            height="0.5"
+            depth="0.5">
+        </a-box>
+
+
+        <!-- Caméra avec suivi des mouvements -->
+        <a-entity
+            camera
+            look-controls
+            position="0 1.6 0">
+        </a-entity>
+
+    </a-scene>
+
+
+    <!-- =====================================
+         INDICATEUR DE CHARGEMENT
+    ====================================== -->
+
+    <div id="status">
+        Chargement du panorama...
+    </div>
+
+
+    <script>
+
+        // =====================================
+        // VÉRIFICATION DU CHARGEMENT
+        // =====================================
+
+        const panorama = document.getElementById('panorama');
+
+        const status = document.getElementById('status');
+
+        panorama.addEventListener('load', () => {
+
+            status.textContent = 'Panorama chargé avec succès !';
+
+            status.className = 'success';
+
+        });
+
+        panorama.addEventListener('error', () => {
+
+            status.textContent =
+                'Erreur de chargement du panorama. Vérifiez Internet.';
+
+            status.className = 'error';
+
+        });
+
+    </script>
+
+</body>
+</html>
