@@ -1,0 +1,197 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>TP1 - Réalité augmentée avec model-viewer</title>
+
+    <!-- Bibliothèque Google Model Viewer -->
+    <script
+        type="module"
+        src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js">
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 0;
+            background: #f8fafc;
+            color: #1e293b;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 16px;
+        }
+
+        .description {
+            margin: 0 16px 12px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        model-viewer {
+            width: 100%;
+            height: 70vh;
+            min-height: 350px;
+            background: #f0f0f0;
+            --poster-color: #f0f0f0;
+        }
+
+        #bouton-ar {
+            background: #0a58ca;
+            color: #fff;
+            border: 0;
+            border-radius: 8px;
+            padding: 14px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        #bouton-ar:hover {
+            background: #084298;
+        }
+
+        .info {
+            margin: 16px;
+            padding: 14px;
+            background: white;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        #status {
+            margin: 12px 16px;
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .success {
+            color: #0a7d2c;
+        }
+
+        .error {
+            color: #c0392b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Réalité augmentée avec Model Viewer</h1>
+
+    <p class="description">
+        Explorez un astronaute en 3D et placez-le dans votre environnement réel.
+    </p>
+
+    <p id="status">Chargement du modèle 3D...</p>
+
+    <!-- =====================================
+         MODÈLE 3D ET RÉALITÉ AUGMENTÉE
+    ====================================== -->
+
+    <model-viewer
+        id="astronaute"
+        src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+        alt="Un astronaute en 3D"
+
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        ar-scale="auto"
+        ar-placement="floor"
+
+        camera-controls
+        touch-action="pan-y"
+        shadow-intensity="1">
+
+        <button
+            slot="ar-button"
+            id="bouton-ar">
+
+            Voir dans votre espace
+
+        </button>
+
+    </model-viewer>
+
+    <div class="info">
+
+        <strong>Comment utiliser cette expérience ?</strong>
+
+        <ul>
+            <li>Faites tourner l'astronaute avec votre doigt.</li>
+            <li>Zoomez pour observer les détails.</li>
+            <li>Appuyez sur « Voir dans votre espace ».</li>
+            <li>Déplacez lentement votre téléphone pour détecter le sol.</li>
+            <li>Touchez l'écran pour placer l'astronaute.</li>
+            <li>Déplacez-vous autour de l'objet pour observer sa stabilité.</li>
+        </ul>
+
+    </div>
+
+    <script>
+
+        // =====================================
+        // GESTION DU CHARGEMENT DU MODÈLE
+        // =====================================
+
+        const viewer = document.getElementById('astronaute');
+        const status = document.getElementById('status');
+
+        viewer.addEventListener('load', () => {
+
+            status.textContent = 'Modèle 3D chargé avec succès !';
+
+            status.className = 'success';
+
+        });
+
+        viewer.addEventListener('error', () => {
+
+            status.textContent =
+                'Erreur de chargement. Vérifiez votre connexion Internet.';
+
+            status.className = 'error';
+
+        });
+
+        // =====================================
+        // VÉRIFICATION DE LA DISPONIBILITÉ AR
+        // =====================================
+
+        viewer.addEventListener('ar-status', (event) => {
+
+            if (event.detail.status === 'session-started') {
+
+                status.textContent = 'Session de réalité augmentée activée.';
+
+            } else if (event.detail.status === 'object-placed') {
+
+                status.textContent = 'Astronaute placé dans votre espace !';
+
+            } else if (event.detail.status === 'failed') {
+
+                status.textContent = 'Impossible de démarrer la session AR.';
+
+            }
+
+        });
+
+    </script>
+
+</body>
+</html>
