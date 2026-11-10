@@ -1,72 +1,318 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <title>TP2 - Salle XR interactive</title>
-<!-- Version figée : on note toujours la version utilisée (reproductibilité) -->
+
+<!-- A-Frame 1.7.1 -->
 <script src="https://cdn.jsdelivr.net/npm/aframe@1.7.1/dist/aframe-v1.7.1.min.js"></script>
+
 <style>
-#hud { position: fixed; bottom: 8px; left: 8px; right: 8px; z-index: 10; pointer-events: none;
-font: 600 16px system-ui, sans-serif; color: #fff; text-shadow: 0 0 4px #000, 0 0 4px #000; }
+    body {
+        margin: 0;
+        overflow: hidden;
+    }
+
+    #hud {
+        position: fixed;
+        bottom: 8px;
+        left: 8px;
+        right: 8px;
+        z-index: 10;
+        pointer-events: none;
+        font: 600 16px system-ui, sans-serif;
+        color: #fff;
+        text-align: center;
+        text-shadow: 0 0 4px #000, 0 0 4px #000;
+    }
 </style>
-</head>
-<body>
-<div id="hud">Visez avec le point blanc, touchez l'écran pour agir.</div>
-<a-scene id="scene" vr-mode-ui="enabled: false" renderer="antialias: true">
-<!-- TEST : ces deux lignes seront remplacées à l'étape B -->
-<!-- ============ BLOC 1 : ENVIRONNEMENT (organisé par fonction) ============ -->
-<a-entity id="Environnement">
-<a-sky color="#9ec9ee"></a-sky>
-<a-entity light="type: ambient; intensity: 0.7"></a-entity>
-<a-entity light="type: directional; intensity: 0.8" position="1 4 2"></a-entity>
-<!-- Sol (6 m x 6 m). Touchez-le pour vous téléporter. -->
-<a-plane id="Sol" class="interactif" teleport-sol rotation="-90 0 0" width="6" height="6"
-material="color: #c9c9c9; roughness: 0.9"></a-plane>
-<!-- Murs (hauteur 3 m) -->
-<a-plane position="0 1.5 -3" width="6" height="3" material="color: #e8eef5"></a-plane>
-<a-plane position="-3 1.5 0" rotation="0 90 0" width="6" height="3" material="color: #e8eef5"></a-plane>
-<a-plane position="3 1.5 0" rotation="0 -90 0" width="6" height="3" material="color: #e8eef5"></a-plane>
-<a-plane position="0 1.5 3" rotation="0 180 0" width="6" height="3" material="color: #e8eef5"></a-plane>
-<!-- Table A : instruments (plateau à 0,75 m du sol, comme une vraie table) -->
-<a-entity id="Table_A" position="-0.6 0 -1">
-<a-box position="0 0.725 0" width="1" height="0.05" depth="0.6" material="color: #8d6e63; roughness:
-0.8"></a-box>
-<a-box position="-0.45 0.35 -0.25" width="0.05" height="0.7" depth="0.05" color="#5d4037"></a-box>
-<a-box position="0.45 0.35 -0.25" width="0.05" height="0.7" depth="0.05" color="#5d4037"></a-box>
-<a-box position="-0.45 0.35 0.25" width="0.05" height="0.7" depth="0.05" color="#5d4037"></a-box>
-<a-box position="0.45 0.35 0.25" width="0.05" height="0.7" depth="0.05" color="#5d4037"></a-box>
-</a-entity>9
-<!-- Table B : plateau avec 3 zones de dépôt -->
-<a-entity id="Table_B" position="0.6 0 -1">
-<a-box position="0 0.725 0" width="1" height="0.05" depth="0.6" material="color: #eceff1; roughness:
-0.5"></a-box>
-<a-box position="-0.45 0.35 -0.25" width="0.05" height="0.7" depth="0.05" color="#90a4ae"></a-box>
-<a-box position="0.45 0.35 -0.25" width="0.05" height="0.7" depth="0.05" color="#90a4ae"></a-box>
-<a-box position="-0.45 0.35 0.25" width="0.05" height="0.7" depth="0.05" color="#90a4ae"></a-box>
-<a-box position="0.45 0.35 0.25" width="0.05" height="0.7" depth="0.05" color="#90a4ae"></a-box>
-</a-entity>
-<!-- Panneau de mission ancré dans le monde (pas collé à la tête) -->
-<a-plane position="0 2.0 -2.95" width="2.4" height="0.9" material="color: #1b2a41; shader: flat"></aplane>
-<a-text id="Panneau" position="0 2.0 -2.93" width="2.2" align="center" color="#ffffff"
-value="Salle de formation\nPlacez chaque instrument\ndans sa zone."></a-text>
-<a-text position="0 2.55 -2.93" width="2.2" align="center" color="#ffd54f"
-value="Prototype pédagogique - pas un dispositif médical"></a-text>
-</a-entity>
-<!-- ============ BLOC 4 : XR ORIGIN (rig) + caméra + curseur ============ -->
-<!-- On déplace le RIG, jamais la caméra seule. wasd : test sur ordinateur. -->
-<a-entity id="rig" position="0 0 0.8" wasd-controls="acceleration: 15">
-<a-entity id="tete" camera position="0 1.6 0" look-controls>
-<a-entity id="curseur" cursor="fuse: false" raycaster="objects: .interactif; far: 8"
-position="0 0 -1"
-geometry="primitive: ring; radiusInner: 0.012; radiusOuter: 0.02"
-material="color: #ffffff; shader: flat; opacity: 0.9"></a-entity>
-</a-entity>
-</a-entity>
-<!-- FIN DU TEST -->
-</a-scene>
+
 <script>
-/* EMPLACEMENT DU SCRIPT */
+/* ==========================================
+   COMPOSANT : TELEPORTATION
+========================================== */
+
+AFRAME.registerComponent('teleport-sol', {
+
+    init: function () {
+
+        this.el.addEventListener('click', (event) => {
+
+            const intersection = event.detail.intersection;
+
+            if (!intersection) return;
+
+            const point = intersection.point;
+
+            const rig = document.getElementById('rig');
+
+            if (!rig) return;
+
+            // Déplacement du rig sur le sol
+            rig.setAttribute('position', {
+                x: point.x,
+                y: 0,
+                z: point.z
+            });
+
+            document.getElementById('hud').textContent =
+                "Téléportation effectuée !";
+        });
+
+    }
+
+});
 </script>
+
+</head>
+
+<body>
+
+<div id="hud">
+    Visez avec le point blanc, touchez l'écran pour agir.
+</div>
+
+<a-scene
+    id="scene"
+    vr-mode-ui="enabled: false"
+    renderer="antialias: true"
+>
+
+<!-- ==========================================
+     BLOC 1 : ENVIRONNEMENT
+========================================== -->
+
+<a-entity id="Environnement">
+
+    <!-- CIEL -->
+    <a-sky color="#9ec9ee"></a-sky>
+
+    <!-- LUMIÈRE AMBIANTE -->
+    <a-entity
+        light="type: ambient; intensity: 0.7">
+    </a-entity>
+
+    <!-- LUMIÈRE DIRECTIONNELLE -->
+    <a-entity
+        light="type: directional; intensity: 0.8"
+        position="1 4 2">
+    </a-entity>
+
+    <!-- SOL -->
+    <a-plane
+        id="Sol"
+        class="interactif"
+        teleport-sol
+        rotation="-90 0 0"
+        width="6"
+        height="6"
+        material="color: #c9c9c9; roughness: 0.9">
+    </a-plane>
+
+    <!-- MURS -->
+    <a-plane
+        position="0 1.5 -3"
+        width="6"
+        height="3"
+        material="color: #e8eef5">
+    </a-plane>
+
+    <a-plane
+        position="-3 1.5 0"
+        rotation="0 90 0"
+        width="6"
+        height="3"
+        material="color: #e8eef5">
+    </a-plane>
+
+    <a-plane
+        position="3 1.5 0"
+        rotation="0 -90 0"
+        width="6"
+        height="3"
+        material="color: #e8eef5">
+    </a-plane>
+
+    <a-plane
+        position="0 1.5 3"
+        rotation="0 180 0"
+        width="6"
+        height="3"
+        material="color: #e8eef5">
+    </a-plane>
+
+
+    <!-- ======================================
+         TABLE A : INSTRUMENTS
+    ====================================== -->
+
+    <a-entity id="Table_A" position="-0.6 0 -1">
+
+        <!-- PLATEAU -->
+        <a-box
+            class="interactif"
+            position="0 0.725 0"
+            width="1"
+            height="0.05"
+            depth="0.6"
+            material="color: #8d6e63; roughness: 0.8">
+        </a-box>
+
+        <!-- QUATRE PIEDS -->
+        <a-box position="-0.45 0.35 -0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#5d4037"></a-box>
+
+        <a-box position="0.45 0.35 -0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#5d4037"></a-box>
+
+        <a-box position="-0.45 0.35 0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#5d4037"></a-box>
+
+        <a-box position="0.45 0.35 0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#5d4037"></a-box>
+
+    </a-entity>
+
+
+    <!-- ======================================
+         TABLE B : ZONES DE DÉPÔT
+    ====================================== -->
+
+    <a-entity id="Table_B" position="0.6 0 -1">
+
+        <!-- PLATEAU -->
+        <a-box
+            class="interactif"
+            position="0 0.725 0"
+            width="1"
+            height="0.05"
+            depth="0.6"
+            material="color: #eceff1; roughness: 0.5">
+        </a-box>
+
+        <!-- QUATRE PIEDS -->
+        <a-box position="-0.45 0.35 -0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#90a4ae"></a-box>
+
+        <a-box position="0.45 0.35 -0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#90a4ae"></a-box>
+
+        <a-box position="-0.45 0.35 0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#90a4ae"></a-box>
+
+        <a-box position="0.45 0.35 0.25"
+            width="0.05" height="0.7" depth="0.05"
+            color="#90a4ae"></a-box>
+
+    </a-entity>
+
+
+    <!-- ======================================
+         PANNEAU DE MISSION
+    ====================================== -->
+
+    <a-plane
+        position="0 2.0 -2.95"
+        width="2.4"
+        height="0.9"
+        material="color: #1b2a41; shader: flat">
+    </a-plane>
+
+    <a-text
+        id="Panneau"
+        position="0 2.0 -2.93"
+        width="2.2"
+        align="center"
+        color="#ffffff"
+        value="Salle de formation&#10;Placez chaque instrument&#10;dans sa zone.">
+    </a-text>
+
+    <a-text
+        position="0 2.55 -2.93"
+        width="2.2"
+        align="center"
+        color="#ffd54f"
+        value="Prototype pédagogique - pas un dispositif médical">
+    </a-text>
+
+</a-entity>
+
+
+<!-- ==========================================
+     BLOC 4 : XR ORIGIN (RIG)
+========================================== -->
+
+<a-entity
+    id="rig"
+    position="0 0 0.8"
+    wasd-controls="acceleration: 15">
+
+    <!-- CAMÉRA -->
+    <a-entity
+        id="tete"
+        camera
+        position="0 1.6 0"
+        look-controls>
+
+        <!-- CURSEUR XR -->
+        <a-entity
+            id="curseur"
+            cursor="fuse: false"
+            raycaster="objects: .interactif; far: 8"
+            position="0 0 -1"
+            geometry="primitive: ring; radiusInner: 0.012; radiusOuter: 0.02"
+            material="color: #ffffff; shader: flat; opacity: 0.9">
+        </a-entity>
+
+    </a-entity>
+
+</a-entity>
+
+</a-scene>
+
+
+<!-- ==========================================
+     SCRIPT : INTERACTIONS
+========================================== -->
+
+<script>
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    const hud = document.getElementById('hud');
+
+    const tableA = document.querySelector('#Table_A .interactif');
+    const tableB = document.querySelector('#Table_B .interactif');
+
+    // Interaction avec Table A
+    tableA.addEventListener('click', function () {
+
+        hud.textContent = "Table A : instruments sélectionnés.";
+
+    });
+
+    // Interaction avec Table B
+    tableB.addEventListener('click', function () {
+
+        hud.textContent = "Table B : zone de dépôt sélectionnée.";
+
+    });
+
+    console.log("Salle XR interactive chargée avec succès.");
+
+});
+
+</script>
+
 </body>
 </html>
