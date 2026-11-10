@@ -338,6 +338,457 @@ document.addEventListener('DOMContentLoaded', function () {
 
 });
 
+
+    
+const THREE = AFRAME.THREE;
+
+/* =================================================
+   1. OUTILS : SON ET VIBRATION
+================================================= */
+
+let ctxAudio = null;
+
+function bip(freq = 660, duree = 0.12) {
+    try {
+        ctxAudio = ctxAudio || new (
+            window.AudioContext || window.webkitAudioContext
+        )();
+
+        if (ctxAudio.state === 'suspended') {
+            ctxAudio.resume();
+        }
+
+        const o = ctxAudio.createOscillator();
+        const g = ctxAudio.createGain();
+
+        o.frequency.value = freq;
+        g.gain.value = 0.15;
+
+        o.connect(g);
+        g.connect(ctxAudio.destination);
+
+        o.start();
+        o.stop(ctxAudio.currentTime + duree);
+
+    } catch (e) {
+        console.warn('Audio non disponible :', e);
+    }
+}
+
+function vibrer(motif) {
+    if (navigator.vibrate) {
+        navigator.vibrate(motif);
+    }
+}
+
+
+/* =================================================
+   2. ÉTAT GLOBAL DU JEU
+================================================= */
+
+const jeu = {
+    main: null,
+    score: 0,
+    erreurs: 0,
+    t0: null,
+    fini: false
+};
+
+const hud = document.getElementById('hud');
+
+function majPanneau(msg) {
+
+    const panneau = document.getElementById('Panneau');
+
+    if (panneau) {
+        panneau.setAttribute(
+            'text',
+            'value',
+            'Score : ' + jeu.score + ' / 3\n' +
+            'Erreurs : ' + jeu.erreurs + '\n' +
+            msg
+        );
+    }
+
+    if (hud) {
+        hud.textContent =
+            (jeu.main
+                ? 'En main : ' +
+                  jeu.main.components.instrument.data.nom +
+                  ' - touchez sa zone'
+                : 'Touchez un instrument pour le saisir'
+            ) +
+            ' | Score ' + jeu.score + '/3' +
+            ' | Erreurs ' + jeu.erreurs;
+    }
+}
+
+
+/* =================================================
+   3. TÉLÉPORTATION
+================================================= */
+
+AFRAME.registerComponent('teleport-sol', {
+
+    init() {
+
+        this.el.addEventListener('click', e => {
+
+            if (!e.detail || !e.detail.intersection) {
+                return;
+            }
+
+            const p = e.detail.intersection.point;
+
+            const rig = document.getElementById('rig');
+
+            if (!rig) return;
+
+            const x = Math.max(-2.4, Math.min(2.4, p.x));
+            const z = Math.max(-2.4, Math.min(2.4, p.z));
+
+            // Déplacement du XR Origin (rig)
+            rig.object3D.position.set(x, 0, z);
+
+            bip(440, 0.08);
+        });
+    }
+});
+
+
+/* =================================================
+   4. COMPOSANT INSTRUMENT
+   Machine à états :
+   libre -> survole -> saisi -> depose
+================================================= */
+
+AFRAME.registerComponent('instrument', {
+
+    schema: {
+        nom: { type: 'string' },
+        zone: { type: 'string' }
+    },
+
+    init() {
+
+        this.etat = 'libre';
+
+        // Sauvegarde de la position initiale
+        this.posInit = this.el.object3D.position.clone();
+        this.rotInit = this.el.object3D.rotation.clone();
+
+        // Survol de l'instrument
+        this.el.addEventListener('mouseenter', () => {
+
+            if (this.etat === 'libre') {
+                this.setEtat('survole');
+            }
+
+        });
+
+        // Fin du survol
+        this.el.addEventListener('mouseleave', () => {
+
+            if (this.etat === 'survole') {
+                this.setEtat('libre');
+            }
+
+        });
+
+        // Sélection de l'instrument
+        this.el.addEventListener('click', () => {
+
+            if (jeu.fini) return;
+
+            if (this.etat === 'depose') return;
+
+            if (this.etat === 'saisi') {
+
+                this.relacher();
+
+            } else if (!jeu.main) {
+
+                this.saisir();
+
+            }
+
+        });
+    },
+
+
+    // Changement d'état et retour visuel
+    setEtat(e) {
+
+        this.etat = e;
+
+        this.el.setAttribute(
+            'material',
+            'emissive',
+            e === 'survole' ? '#ffee58' : '#000000'
+        );
+
+        this.el.setAttribute(
+            'material',
+            'emissiveIntensity',
+            e === 'survole' ? 0.6 : 0
+        );
+    },
+
+
+    // Saisir l'instrument
+    saisir() {
+
+        if (!jeu.t0) {
+            jeu.t0 = performance.now();
+        }
+
+        const tete = document.getElementById('tete');
+
+        if (!tete) return;
+
+        // L'instrument devient enfant de la caméra
+        tete.object3D.attach(this.el.object3D);
+
+        // Position en bas à droite
+        this.el.object3D.position.set(
+            0.22,
+            -0.22,
+            -0.7
+        );
+
+        this.el.object3D.rotation.set(0, 0, 0);
+
+        // Le rayon ignore l'objet tenu
+        this.el.classList.remove('interactif');
+
+        jeu.main = this.el;
+
+        this.setEtat('saisi');
+
+        bip(520);
+        vibrer(30);
+
+        majPanneau('Vous tenez : ' + this.data.nom);
+    },
+
+
+    // Annuler la saisie
+    relacher() {
+
+        const scene = document.getElementById('scene');
+
+        if (!scene) return;
+
+        // Retour dans la scène
+        scene.object3D.attach(this.el.object3D);
+
+        this.el.object3D.position.copy(this.posInit);
+        this.el.object3D.rotation.copy(this.rotInit);
+
+        this.el.classList.add('interactif');
+
+        jeu.main = null;
+
+        this.setEtat('libre');
+
+        bip(330, 0.1);
+
+        majPanneau('Instrument reposé.');
+    },
+
+
+    // Déposer dans la bonne zone
+    deposer(zoneEl) {
+
+        const p = new THREE.Vector3();
+
+        zoneEl.object3D.getWorldPosition(p);
+
+        const scene = document.getElementById('scene');
+
+        scene.object3D.attach(this.el.object3D);
+
+        this.el.object3D.position.set(
+            p.x,
+            p.y + 0.06,
+            p.z
+        );
+
+        this.el.object3D.rotation.set(0, 0, 0);
+
+        this.el.classList.remove('interactif');
+
+        jeu.main = null;
+
+        this.setEtat('depose');
+    }
+
+});
+
+
+/* =================================================
+   5. ZONE DE DÉPÔT
+   Vérification de la bonne zone
+================================================= */
+
+AFRAME.registerComponent('zone-depot', {
+
+    init() {
+
+        this.el.addEventListener('click', () => {
+
+            if (!jeu.main || jeu.fini) return;
+
+            const inst = jeu.main.components.instrument;
+
+            // Vérifier si la zone est correcte
+            if (inst.data.zone === this.el.id) {
+
+                // Dépôt correct
+                inst.deposer(this.el);
+
+                jeu.score++;
+
+                bip(880, 0.2);
+                vibrer([40, 60, 40]);
+
+                this.el.setAttribute(
+                    'material',
+                    'color',
+                    '#2e7d32'
+                );
+
+                // Mission terminée
+                if (jeu.score === 3) {
+
+                    jeu.fini = true;
+
+                    const secondes = (
+                        (performance.now() - jeu.t0) / 1000
+                    ).toFixed(0);
+
+                    majPanneau(
+                        'TERMINÉ en ' + secondes + ' secondes !'
+                    );
+
+                    console.log(
+                        'RESULTAT',
+                        JSON.stringify({
+                            secondes: Number(secondes),
+                            erreurs: jeu.erreurs
+                        })
+                    );
+
+                } else {
+
+                    majPanneau('Bien joué !');
+
+                }
+
+            } else {
+
+                // Mauvaise zone
+                jeu.erreurs++;
+
+                bip(180, 0.3);
+                vibrer([100, 50, 100]);
+
+                const ancienne =
+                    this.el.getAttribute('material').color;
+
+                this.el.setAttribute(
+                    'material',
+                    'color',
+                    '#d32f2f'
+                );
+
+                setTimeout(() => {
+
+                    this.el.setAttribute(
+                        'material',
+                        'color',
+                        ancienne
+                    );
+
+                }, 500);
+
+                // Retour à la position initiale
+                inst.relacher();
+
+                majPanneau('Mauvaise zone. Réessayez.');
+
+            }
+
+        });
+    }
+
+});
+
+
+/* =================================================
+   6. MESURE DES PERFORMANCES
+================================================= */
+
+// ?stats : afficher FPS et triangles
+// ?stress=200 : ajouter 200 sphères
+
+const params = new URLSearchParams(location.search);
+
+const sceneEl = document.getElementById('scene');
+
+// Afficher les statistiques
+if (params.has('stats')) {
+
+    sceneEl.setAttribute('stats', '');
+
+}
+
+// Nombre de sphères de test
+const nbStress = Math.max(
+    0,
+    Math.min(
+        1000,
+        parseInt(params.get('stress') || '0', 10) || 0
+    )
+);
+
+// Création des sphères
+for (let i = 0; i < nbStress; i++) {
+
+    const s = document.createElement('a-sphere');
+
+    s.setAttribute('radius', 0.08);
+
+    s.setAttribute('segments-width', 32);
+    s.setAttribute('segments-height', 32);
+
+    s.setAttribute('position', {
+        x: (Math.random() - 0.5) * 5,
+        y: 0.3 + Math.random() * 2.5,
+        z: (Math.random() - 0.5) * 5
+    });
+
+    s.setAttribute(
+        'material',
+        'color: #9575cd; metalness: 0.5; roughness: 0.3'
+    );
+
+    sceneEl.appendChild(s);
+
+}
+
+
+/* =================================================
+   7. INITIALISATION
+================================================= */
+
+sceneEl.addEventListener('loaded', () => {
+
+    majPanneau('Saisissez un instrument.');
+
+});
+
+
 </script>
 
 </body>
