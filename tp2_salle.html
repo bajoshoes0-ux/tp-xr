@@ -121,14 +121,16 @@ function bip(freq = 660, duree = 0.12) {
 function vibrer(motif) { if (navigator.vibrate) navigator.vibrate(motif); } // Android seulement
 
 /* ---------- État global du jeu (la "règle métier") ---------- */
+const TOTAL_INSTRUMENTS = 4;
 const jeu = { main: null, score: 0, erreurs: 0, t0: null, fini: false };
 const hud = document.getElementById('hud');
+
 function majPanneau(msg) {
   document.getElementById('Panneau').setAttribute('text', 'value',
-    'Score : ' + jeu.score + ' / 3  Erreurs : ' + jeu.erreurs + '\n' + msg);
+    'Score : ' + jeu.score + ' / ' + TOTAL_INSTRUMENTS + '  Erreurs : ' + jeu.erreurs + '\n' + msg);
   hud.textContent = (jeu.main ? 'En main : ' + jeu.main.components.instrument.data.nom + ' - touchez sa zone'
                               : 'Touchez un instrument pour le saisir')
-                    + ' | Score ' + jeu.score + '/3  Erreurs ' + jeu.erreurs;
+                    + ' | Score ' + jeu.score + '/' + TOTAL_INSTRUMENTS + '  Erreurs ' + jeu.erreurs;
 }
 
 /* ---------- Composant : téléportation en touchant le sol ---------- */
@@ -212,12 +214,14 @@ AFRAME.registerComponent('zone-depot', {
         jeu.score++;
         bip(880, 0.2); vibrer([40, 60, 40]);
         this.el.setAttribute('material', 'color', '#2e7d32');
-        if (jeu.score === 3) {
+        if (jeu.score === TOTAL_INSTRUMENTS) {
           jeu.fini = true;
           const s = ((performance.now() - jeu.t0) / 1000).toFixed(0);
           majPanneau('TERMINÉ en ' + s + ' s');
           console.log('RESULTAT', JSON.stringify({ secondes: +s, erreurs: jeu.erreurs }));
-        } else majPanneau('Bien joué !');
+        } else {
+          majPanneau('Bien joué !');
+        }
       } else { // mauvaise zone : erreur récupérable
         jeu.erreurs++;
         bip(180, 0.3); vibrer([100, 50, 100]);
@@ -232,6 +236,8 @@ AFRAME.registerComponent('zone-depot', {
 });
 
 /* ---------- Outils de mesure (étape Performance) ---------- */
+// Ajoutez ?stats à l'adresse pour afficher FPS / triangles / draw calls.
+// Ajoutez ?stress=200 pour ajouter 200 sphères.
 const params = new URLSearchParams(location.search);
 const sceneEl = document.getElementById('scene');
 if (params.has('stats')) sceneEl.setAttribute('stats', '');
@@ -239,10 +245,11 @@ const nbStress = parseInt(params.get('stress') || '0', 10);
 for (let i = 0; i < nbStress; i++) {
   const s = document.createElement('a-sphere');
   s.setAttribute('radius', 0.08);
-  s.setAttribute('segments-width', 8);
-  s.setAttribute('segments-height', 8);
+  s.setAttribute('segments-width', 8);   // Optimisé (32 avant optimisation)
+  s.setAttribute('segments-height', 8);  // Optimisé (32 avant optimisation)
   s.setAttribute('position', {
-    x: (Math.random() - 0.5) * 5, y: 0.3 + Math.random() * 2.5, z: (Math.random() - 0.5) * 5 });
+    x: (Math.random() - 0.5) * 5, y: 0.3 + Math.random() * 2.5, z: (Math.random() - 0.5) * 5
+  });
   s.setAttribute('material', 'color: #9575cd; metalness: 0.5; roughness: 0.3');
   sceneEl.appendChild(s);
 }
