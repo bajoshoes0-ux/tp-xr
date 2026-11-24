@@ -1,1 +1,962 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>TP3 - Commandes vocales</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 14px;
+  font-size: 17px;
+  background: #f5f7fa;
+  color: #263238;
+}
+
+button {
+  font-size: 16px;
+  padding: 11px 16px;
+  margin: 4px 4px 4px 0;
+  border-radius: 8px;
+  border: 0;
+  background: #1565c0;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.sec {
+  background: #546e7a;
+}
+
+button.danger {
+  background: #c62828;
+}
+
+#micro {
+  background: #c62828;
+}
+
+#micro.ecoute {
+  background: #2e7d32;
+}
+
+#procedure {
+  background: #263238;
+  color: #fff;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+#procedure li {
+  margin: 9px 0;
+}
+
+#procedure li.actuelle {
+  color: #ffd54f;
+  font-weight: bold;
+}
+
+#procedure li.terminee {
+  color: #81c784;
+}
+
+pre {
+  background: #eceff1;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+input[type="text"] {
+  font-size: 16px;
+  padding: 10px;
+  width: min(70%, 450px);
+  border: 1px solid #bbb;
+  border-radius: 6px;
+}
+
+#confirmation {
+  display: none;
+  background: #fff3cd;
+  border: 1px solid #ffca28;
+  color: #333;
+  padding: 14px;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+#indicateur {
+  font-weight: bold;
+}
+
+.carte {
+  background: white;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  border: 1px solid #ddd;
+}
+
+#journal {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+#progression {
+  height: 9px;
+  background: #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+#barreProgression {
+  height: 100%;
+  width: 0%;
+  background: #2e7d32;
+  transition: width 0.3s;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Assistant de maintenance (voix)</h2>
+
+<!-- ===================================
+     1. PROCÉDURE
+=================================== -->
+
+<div id="procedure">
+
+  <b>Procédure : remplacer le filtre</b>
+
+  <div id="progression">
+    <div id="barreProgression"></div>
+  </div>
+
+  <p id="compteur">Étape 1 / 5</p>
+
+  <ol id="etapes"></ol>
+
+</div>
+
+<!-- ===================================
+     2. MICROPHONE
+=================================== -->
+
+<div class="carte">
+
+  <h3>Reconnaissance vocale</h3>
+
+  <button id="micro">
+    Appuyer pour parler
+  </button>
+
+  <span id="indicateur">Micro éteint</span>
+
+  <p>
+    Commandes :
+    <i>
+      suivant, précédent, valide, annule,
+      aide, montre-moi la vis du capot
+    </i>
+  </p>
+
+</div>
+
+<!-- ===================================
+     3. BOUTONS DE SECOURS
+=================================== -->
+
+<div class="carte">
+
+  <h3>Repli sans microphone</h3>
+
+  <button class="sec" data-cmd="PRECEDENT">
+    Précédent
+  </button>
+
+  <button class="sec" data-cmd="SUIVANT">
+    Suivant
+  </button>
+
+  <button class="sec" data-cmd="VALIDER">
+    Valider
+  </button>
+
+  <button class="sec" data-cmd="AIDE">
+    Aide
+  </button>
+
+  <button class="danger" data-cmd="ANNULER">
+    Annuler
+  </button>
+
+</div>
+
+<!-- ===================================
+     4. SIMULATION
+=================================== -->
+
+<div class="carte">
+
+  <h3>Simulation sans microphone</h3>
+
+  <input
+    type="text"
+    id="simu"
+    placeholder="Ex : montre-moi la vis du capot">
+
+  <button class="sec" id="bSimu">
+    Envoyer
+  </button>
+
+</div>
+
+<!-- ===================================
+     5. COMPRÉHENSION
+=================================== -->
+
+<div class="carte">
+
+  <h3>Ce que le système a compris</h3>
+
+  <pre id="resultat">En attente d'une commande...</pre>
+
+</div>
+
+<!-- ===================================
+     6. CONFIRMATION
+=================================== -->
+
+<div id="confirmation">
+
+  <b id="questionConf"></b>
+
+  <p>
+    <button id="oui">Oui, confirmer</button>
+
+    <button id="non" class="sec">Non, refuser</button>
+  </p>
+
+</div>
+
+<!-- ===================================
+     7. JOURNAL
+=================================== -->
+
+<div class="carte">
+
+  <h3>Journal des commandes</h3>
+
+  <pre id="journal">Aucune commande enregistrée.</pre>
+
+  <button class="sec" id="viderJournal">
+    Effacer le journal
+  </button>
+
+</div>
+
+<script>
+
+/* ==========================================
+   1. UTILITAIRES
+========================================== */
+
+const $ = id => document.getElementById(id);
+
+function log(message) {
+
+  const ancien = $('journal').textContent;
+
+  const prefix = ancien === 'Aucune commande enregistrée.'
+    ? ''
+    : ancien;
+
+  $('journal').textContent =
+    new Date().toLocaleTimeString() +
+    ' - ' + message + '\n' + prefix;
+
+}
+
+/* ==========================================
+   2. NORMALISATION DU TEXTE
+========================================== */
+
+function normaliser(txt) {
+
+  return txt
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9' ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+}
+
+/* ==========================================
+   3. COMMANDES PRÉDÉFINIES
+========================================== */
+
+const COMMANDES = [
+
+  {
+    intention: 'SUIVANT',
+
+    motifs: [
+      'suivant',
+      'etape suivante',
+      'prochaine etape',
+      'continue',
+      'continuer',
+      'passe a la suite',
+      'passe a letape suivante'
+    ]
+
+  },
+
+  {
+    intention: 'PRECEDENT',
+
+    motifs: [
+      'precedent',
+      'etape precedente',
+      'retour',
+      'reviens',
+      'etape avant',
+      'revenir en arriere'
+    ]
+
+  },
+
+  {
+    intention: 'VALIDER',
+
+    motifs: [
+      'valide',
+      'valider',
+      'confirme',
+      'confirmer',
+      'c est fait',
+      'termine',
+      'terminer',
+      'etape terminee'
+    ]
+
+  },
+
+  {
+    intention: 'ANNULER',
+
+    motifs: [
+      'annule',
+      'annuler',
+      'stop',
+      'retour arriere',
+      'annule la derniere action'
+    ]
+
+  },
+
+  {
+    intention: 'AIDE',
+
+    motifs: [
+      'aide',
+      'au secours',
+      'je suis bloque',
+      'explique',
+      'explique moi',
+      'comment faire'
+    ]
+
+  }
+
+];
+
+/* ==========================================
+   4. EXTRACTION DES PIÈCES
+========================================== */
+
+function extrairePiece(t) {
+
+  const expressions = [
+
+    /^montre(?: moi)? (?:la |le |les )?(.+?)$/,
+
+    /^affiche(?: moi)? (?:la |le |les )?(.+?)$/,
+
+    /^ou se trouve (?:la |le |les )?(.+?)$/,
+
+    /^je veux voir (?:la |le |les )?(.+?)$/
+
+  ];
+
+  for (const expression of expressions) {
+
+    const m = t.match(expression);
+
+    if (!m) continue;
+
+    let texte = m[1].trim();
+
+    const separateur = texte.match(
+      /^(.+?)\s+(?:du|de la|de l|des|de)\s+(.+)$/
+    );
+
+    if (separateur) {
+
+      return {
+
+        piece: separateur[1].trim(),
+
+        emplacement: separateur[2].trim()
+
+      };
+
+    }
+
+    return {
+
+      piece: texte,
+
+      emplacement: null
+
+    };
+
+  }
+
+  return null;
+
+}
+
+/* ==========================================
+   5. COMPRÉHENSION DES COMMANDES
+========================================== */
+
+function comprendre(texte) {
+
+  const t = normaliser(texte);
+
+  // Recherche d'une demande d'affichage
+  const piece = extrairePiece(t);
+
+  if (piece) {
+
+    return {
+
+      intention: 'AFFICHER_PIECE',
+
+      entites: piece
+
+    };
+
+  }
+
+  // Recherche des commandes fermées
+  for (const commande of COMMANDES) {
+
+    const correspond = commande.motifs.some(motif => {
+
+      return (
+        t === motif ||
+        t.startsWith(motif + ' ') ||
+        t.endsWith(' ' + motif)
+      );
+
+    });
+
+    if (correspond) {
+
+      return {
+
+        intention: commande.intention,
+
+        entites: {}
+
+      };
+
+    }
+
+  }
+
+  return {
+
+    intention: 'INCONNU',
+
+    entites: {}
+
+  };
+
+}
+
+/* ==========================================
+   6. PROCÉDURE DE MAINTENANCE
+========================================== */
+
+const ETAPES = [
+
+  'Couper l alimentation',
+
+  'Ouvrir le capot',
+
+  'Retirer l ancien filtre',
+
+  'Installer le filtre neuf',
+
+  'Refermer et remettre sous tension'
+
+];
+
+let etapeCourante = 0;
+
+const olEtapes = $('etapes');
+
+function afficherEtapes() {
+
+  olEtapes.innerHTML = '';
+
+  ETAPES.forEach((etape, i) => {
+
+    const li = document.createElement('li');
+
+    li.textContent = etape;
+
+    if (i === etapeCourante) {
+
+      li.classList.add('actuelle');
+
+    } else if (i < etapeCourante) {
+
+      li.classList.add('terminee');
+
+    }
+
+    olEtapes.appendChild(li);
+
+  });
+
+  $('compteur').textContent =
+    'Étape ' + (etapeCourante + 1) +
+    ' / ' + ETAPES.length;
+
+  $('barreProgression').style.width =
+    (etapeCourante / ETAPES.length * 100) + '%';
+
+}
+
+afficherEtapes();
+
+/* ==========================================
+   7. EXÉCUTION DES COMMANDES
+========================================== */
+
+function executer(intention, entites = {}) {
+
+  switch (intention) {
+
+    case 'SUIVANT':
+
+      if (etapeCourante < ETAPES.length - 1) {
+
+        etapeCourante++;
+
+        log('Passage à l étape ' + (etapeCourante + 1));
+
+      } else {
+
+        log('La dernière étape est déjà affichée.');
+
+      }
+
+      break;
+
+    case 'PRECEDENT':
+
+      if (etapeCourante > 0) {
+
+        etapeCourante--;
+
+        log('Retour à l étape ' + (etapeCourante + 1));
+
+      } else {
+
+        log('Vous êtes déjà à la première étape.');
+
+      }
+
+      break;
+
+    case 'VALIDER':
+
+      log('Étape ' + (etapeCourante + 1) + ' validée.');
+
+      if (etapeCourante < ETAPES.length - 1) {
+
+        etapeCourante++;
+
+      } else {
+
+        log('Procédure de maintenance terminée !');
+
+        $('barreProgression').style.width = '100%';
+
+      }
+
+      break;
+
+    case 'ANNULER':
+
+      log('Dernière action annulée : retour à l étape précédente.');
+
+      if (etapeCourante > 0) {
+
+        etapeCourante--;
+
+      }
+
+      break;
+
+    case 'AIDE':
+
+      log(
+        'AIDE : ' + ETAPES[etapeCourante] +
+        ' - Consultez le schéma correspondant.'
+      );
+
+      break;
+
+    case 'AFFICHER_PIECE':
+
+      log(
+        'Affichage de la pièce : ' +
+        entites.piece +
+        (
+          entites.emplacement
+            ? ' (emplacement : ' + entites.emplacement + ')'
+            : ''
+        )
+      );
+
+      break;
+
+    default:
+
+      log('Commande non reconnue.');
+
+  }
+
+  afficherEtapes();
+
+}
+
+/* ==========================================
+   8. CONFIANCE ET CONFIRMATION
+========================================== */
+
+const SEUIL_CONFIANCE = 0.70;
+
+let enAttente = null;
+
+function traiter(texte, confiance) {
+
+  const r = comprendre(texte);
+
+  r.texte = texte;
+
+  r.confiance = confiance;
+
+  $('resultat').textContent =
+    JSON.stringify(r, null, 2);
+
+  log(
+    'Commande reçue : "' + texte +
+    '" | Intention : ' + r.intention +
+    ' | Confiance : ' + confiance.toFixed(2)
+  );
+
+  if (r.intention === 'INCONNU') {
+
+    log(
+      'Commande non comprise. Répétez ou utilisez les boutons.'
+    );
+
+    return;
+
+  }
+
+  // Si une ancienne confirmation existe,
+  // on ne laisse pas la nouvelle commande l'écraser.
+  if (enAttente) {
+
+    log('Une confirmation est déjà en attente.');
+
+    return;
+
+  }
+
+  if (confiance < SEUIL_CONFIANCE) {
+
+    enAttente = r;
+
+    $('questionConf').textContent =
+      'J ai compris "' + texte +
+      '" (confiance : ' + confiance.toFixed(2) +
+      '). Voulez-vous confirmer ?';
+
+    $('confirmation').style.display = 'block';
+
+  } else {
+
+    executer(r.intention, r.entites);
+
+  }
+
+}
+
+/* ==========================================
+   9. BOUTONS DE CONFIRMATION
+========================================== */
+
+$('oui').onclick = () => {
+
+  if (enAttente) {
+
+    executer(
+      enAttente.intention,
+      enAttente.entites
+    );
+
+  }
+
+  enAttente = null;
+
+  $('confirmation').style.display = 'none';
+
+  log('Commande confirmée.');
+
+};
+
+$('non').onclick = () => {
+
+  enAttente = null;
+
+  $('confirmation').style.display = 'none';
+
+  log('Commande refusée.');
+
+};
+
+/* ==========================================
+   10. RECONNAISSANCE VOCALE
+========================================== */
+
+const SR =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+let reco = null;
+
+let ecoute = false;
+
+if (!SR) {
+
+  $('micro').disabled = true;
+
+  $('indicateur').textContent =
+    'Reconnaissance vocale indisponible. Utilisez les boutons ou la simulation.';
+
+} else {
+
+  reco = new SR();
+
+  reco.lang = 'fr-FR';
+
+  reco.continuous = false;
+
+  reco.interimResults = false;
+
+  reco.maxAlternatives = 3;
+
+  reco.onstart = () => {
+
+    ecoute = true;
+
+    $('indicateur').textContent = 'JE VOUS ÉCOUTE...';
+
+    $('micro').textContent = 'Arrêter l écoute';
+
+    $('micro').classList.add('ecoute');
+
+  };
+
+  reco.onend = () => {
+
+    ecoute = false;
+
+    $('indicateur').textContent = 'Micro éteint';
+
+    $('micro').textContent = 'Appuyer pour parler';
+
+    $('micro').classList.remove('ecoute');
+
+  };
+
+  reco.onresult = e => {
+
+    const alternatives = Array.from(
+      e.results[0]
+    );
+
+    // Sélection de la meilleure hypothèse
+    const alt = alternatives[0];
+
+    const hypotheses = alternatives
+      .map(a => a.transcript)
+      .join(' | ');
+
+    log('Hypothèses : ' + hypotheses);
+
+    traiter(
+      alt.transcript,
+      alt.confidence || 0.5
+    );
+
+  };
+
+  reco.onerror = e => {
+
+    const messages = {
+
+      'no-speech': 'Aucune parole détectée.',
+
+      'not-allowed': 'Accès au microphone refusé.',
+
+      'audio-capture': 'Aucun microphone détecté.',
+
+      'network': 'Erreur réseau de reconnaissance vocale.',
+
+      'aborted': 'Reconnaissance interrompue.'
+
+    };
+
+    log(
+      'Erreur vocale : ' +
+      (messages[e.error] || e.error)
+    );
+
+    $('indicateur').textContent =
+      messages[e.error] || 'Erreur microphone';
+
+  };
+
+  $('micro').onclick = () => {
+
+    if (ecoute) {
+
+      reco.stop();
+
+    } else {
+
+      try {
+
+        reco.start();
+
+      } catch (error) {
+
+        log('Impossible de démarrer : ' + error.message);
+
+      }
+
+    }
+
+  };
+
+}
+
+/* ==========================================
+   11. BOUTONS DE REPLI
+========================================== */
+
+document.querySelectorAll('[data-cmd]').forEach(button => {
+
+  button.addEventListener('click', () => {
+
+    if (enAttente) {
+
+      log('Veuillez d abord répondre à la confirmation.');
+
+      return;
+
+    }
+
+    executer(button.dataset.cmd, {});
+
+  });
+
+});
+
+/* ==========================================
+   12. SIMULATION
+========================================== */
+
+$('bSimu').onclick = () => {
+
+  const texte = $('simu').value.trim();
+
+  if (!texte) {
+
+    log('Veuillez saisir une phrase.');
+
+    return;
+
+  }
+
+  traiter(texte, 0.90);
+
+  $('simu').value = '';
+
+};
+
+$('simu').addEventListener('keydown', e => {
+
+  if (e.key === 'Enter') {
+
+    $('bSimu').click();
+
+  }
+
+});
+
+/* ==========================================
+   13. JOURNAL
+========================================== */
+
+$('viderJournal').onclick = () => {
+
+  $('journal').textContent =
+    'Aucune commande enregistrée.';
+
+};
+
+</script>
+
+</body>
+</html>
