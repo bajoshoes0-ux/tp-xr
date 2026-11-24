@@ -1,1 +1,918 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>TP3 - Suivi des mains et pincement</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #fff;
+    }
+
+    #zone {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      background: #000;
+      aspect-ratio: 4 / 3;
+      overflow: hidden;
+    }
+
+    video,
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    canvas {
+      pointer-events: none;
+    }
+
+    #panneau {
+      max-width: 640px;
+      margin: auto;
+      padding: 14px;
+      font-size: 16px;
+    }
+
+    #etatPince {
+      font-size: 32px;
+      font-weight: bold;
+      margin: 12px 0;
+    }
+
+    #statut {
+      margin: 12px 0;
+      color: #90caf9;
+    }
+
+    button {
+      font-size: 16px;
+      padding: 11px 16px;
+      border-radius: 8px;
+      border: 0;
+      background: #1565c0;
+      color: #fff;
+      cursor: pointer;
+      margin: 4px 4px 4px 0;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    label {
+      display: block;
+      margin: 14px 0;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .carte {
+      background: #222;
+      padding: 12px;
+      border-radius: 10px;
+      margin: 12px 0;
+    }
+
+    .valeurs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .valeur {
+      background: #292929;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .valeur strong {
+      display: block;
+      font-size: 22px;
+      color: #90caf9;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="zone">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="dessin"></canvas>
+  </div>
+
+  <div id="panneau">
+
+    <button id="start">Démarrer la caméra</button>
+    <button id="stop" disabled>Arrêter</button>
+
+    <div id="statut">En attente du démarrage.</div>
+
+    <div class="carte">
+
+      <div>État du geste :</div>
+
+      <div id="etatPince">-</div>
+
+      <div>
+        Ratio pouce-index / paume :
+        <b id="ratio">-</b>
+      </div>
+
+      <div>
+        Confiance de détection :
+        <b id="conf">-</b>
+      </div>
+
+    </div>
+
+    <div class="valeurs">
+
+      <div class="valeur">
+        Pincements détectés
+        <strong id="nbPinces">0</strong>
+      </div>
+
+      <div class="valeur">
+        Faux pincements
+        <strong id="nbParasites">0</strong>
+      </div>
+
+    </div>
+
+    <div class="carte">
+
+      <label>
+        <input type="checkbox" id="hyst" checked>
+        Activer l'hystérésis (deux seuils)
+      </label>
+
+      <label>
+        Seuil d'entrée (fermeture) :
+        <b id="vOn">0.25</b>
+
+        <input
+          type="range"
+          id="sOn"
+          min="0.10"
+          max="0.60"
+          step="0.01"
+          value="0.25">
+      </label>
+
+      <label>
+        Seuil de sortie (ouverture) :
+        <b id="vOff">0.45</b>
+
+        <input
+          type="range"
+          id="sOff"
+          min="0.10"
+          max="0.80"
+          step="0.01"
+          value="0.45">
+      </label>
+
+      <label>
+        Temps de maintien :
+        <b id="vMaintien">100 ms</b>
+
+        <input
+          type="range"
+          id="sMaintien"
+          min="0"
+          max="500"
+          step="10"
+          value="100">
+      </label>
+
+    </div>
+
+    <div class="carte">
+      <b>Informations :</b>
+      <p>Vert : points de la main.</p>
+      <p>Rouge : pouce et index.</p>
+      <p>Vert lumineux : pincement détecté.</p>
+      <p>Faux pincement : geste maintenu moins de 300 ms.</p>
+    </div>
+
+    <button id="reset">Réinitialiser les statistiques</button>
+
+  </div>
+
+<script>
+/* ==========================================
+   1. LOGIQUE MATHÉMATIQUE
+========================================== */
+
+/*
+ Distance entre deux points normalisés.
+ On prend en compte la largeur et la hauteur
+ de l'image pour éviter les erreurs de proportions.
+*/
+
+function dist(a, b, w, h) {
+
+  return Math.hypot(
+    (a.x - b.x) * w,
+    (a.y - b.y) * h
+  );
+
+}
+
+/*
+ Ratio de pincement :
+
+ Distance pouce-index / distance poignet-base majeur.
+
+ Pouce = 4
+ Index = 8
+ Poignet = 0
+ Base majeur = 9
+*/
+
+function ratioPincement(L, w, h) {
+
+  const paume = dist(L[0], L[9], w, h);
+
+  if (paume < 1) return 1;
+
+  const pincement = dist(L[4], L[8], w, h);
+
+  return pincement / paume;
+
+}
+
+/* ==========================================
+   2. MACHINE À ÉTATS
+========================================== */
+
+/*
+ État :
+ {
+   pince: false,
+   debut: null,
+   debutPince: null
+ }
+
+ Événements :
+ - debut : pincement confirmé
+ - fin   : pincement terminé
+ - null  : aucun changement
+*/
+
+function majPincement(etat, ratio, t, cfg) {
+
+  const seuilOff = cfg.hyst
+    ? Math.max(cfg.off, cfg.on)
+    : cfg.on;
+
+  if (!etat.pince) {
+
+    if (ratio < cfg.on) {
+
+      if (etat.debut === null) {
+        etat.debut = t;
+      }
+
+      if (t - etat.debut >= cfg.maintienMs) {
+
+        etat.pince = true;
+
+        etat.debutPince = t;
+
+        etat.debut = null;
+
+        return 'debut';
+
+      }
+
+    } else {
+
+      etat.debut = null;
+
+    }
+
+  } else {
+
+    if (ratio > seuilOff) {
+
+      etat.pince = false;
+
+      etat.debut = null;
+
+      return 'fin';
+
+    }
+
+  }
+
+  return null;
+
+}
+
+/* ==========================================
+   3. INITIALISATION
+========================================== */
+
+const $ = id => document.getElementById(id);
+
+const video = $('video');
+
+const canvas = $('dessin');
+
+const ctx = canvas.getContext('2d');
+
+const etat = {
+
+  pince: false,
+
+  debut: null,
+
+  debutPince: null
+
+};
+
+let landmarker = null;
+
+let stream = null;
+
+let animationId = null;
+
+let dernierT = -1;
+
+let nbPinces = 0;
+
+let nbParasites = 0;
+
+let actif = false;
+
+let chargement = false;
+
+/* ==========================================
+   4. CONFIGURATION DES SEUILS
+========================================== */
+
+$('sOn').addEventListener('input', e => {
+
+  $('vOn').textContent = Number(e.target.value).toFixed(2);
+
+});
+
+$('sOff').addEventListener('input', e => {
+
+  $('vOff').textContent = Number(e.target.value).toFixed(2);
+
+});
+
+$('sMaintien').addEventListener('input', e => {
+
+  $('vMaintien').textContent = e.target.value + ' ms';
+
+});
+
+/* ==========================================
+   5. CHARGEMENT MEDIAPIPE
+========================================== */
+
+async function creerLandmarker() {
+
+  const {
+    HandLandmarker,
+    FilesetResolver
+  } = await import(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs'
+  );
+
+  const fileset = await FilesetResolver.forVisionTasks(
+
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+
+  );
+
+  const modelURL =
+    'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+
+  const options = {
+
+    baseOptions: {
+      modelAssetPath: modelURL,
+      delegate: 'GPU'
+    },
+
+    runningMode: 'VIDEO',
+
+    numHands: 1,
+
+    minHandDetectionConfidence: 0.6,
+
+    minHandPresenceConfidence: 0.6,
+
+    minTrackingConfidence: 0.6
+
+  };
+
+  try {
+
+    return await HandLandmarker.createFromOptions(
+      fileset,
+      options
+    );
+
+  } catch (error) {
+
+    console.warn('GPU indisponible, utilisation du CPU.', error);
+
+    options.baseOptions.delegate = 'CPU';
+
+    return await HandLandmarker.createFromOptions(
+      fileset,
+      options
+    );
+
+  }
+
+}
+
+/* ==========================================
+   6. DESSIN DE LA MAIN
+========================================== */
+
+const CONNEXIONS = [
+
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],
+  [0,17]
+
+];
+
+function dessinerMain(L, pince) {
+
+  const w = canvas.width;
+
+  const h = canvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Dessiner les connexions
+  ctx.strokeStyle = '#00e676';
+
+  ctx.lineWidth = 3;
+
+  CONNEXIONS.forEach(([a, b]) => {
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      L[a].x * w,
+      L[a].y * h
+    );
+
+    ctx.lineTo(
+      L[b].x * w,
+      L[b].y * h
+    );
+
+    ctx.stroke();
+
+  });
+
+  // Dessiner les 21 points
+  L.forEach((p, i) => {
+
+    ctx.beginPath();
+
+    ctx.arc(
+      p.x * w,
+      p.y * h,
+      i === 4 || i === 8 ? 8 : 4,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fillStyle =
+      (i === 4 || i === 8)
+        ? (pince ? '#00ff00' : '#ff5252')
+        : '#00e676';
+
+    ctx.fill();
+
+  });
+
+  // Ligne entre pouce et index
+  ctx.beginPath();
+
+  ctx.moveTo(L[4].x * w, L[4].y * h);
+
+  ctx.lineTo(L[8].x * w, L[8].y * h);
+
+  ctx.strokeStyle = pince ? '#00ff00' : '#ff5252';
+
+  ctx.lineWidth = 4;
+
+  ctx.stroke();
+
+}
+
+/* ==========================================
+   7. AFFICHAGE DE L'ÉTAT
+========================================== */
+
+function afficherEtat(texte, couleur) {
+
+  $('etatPince').textContent = texte;
+
+  $('etatPince').style.color = couleur;
+
+}
+
+/* ==========================================
+   8. GESTION DES ÉVÉNEMENTS PINCH
+========================================== */
+
+function enregistrerEvenement(ev, t) {
+
+  if (ev === 'debut') {
+
+    nbPinces++;
+
+    if (navigator.vibrate) {
+      navigator.vibrate(25);
+    }
+
+  }
+
+  if (ev === 'fin') {
+
+    const duree = t - etat.debutPince;
+
+    if (duree < 300) {
+
+      nbParasites++;
+
+    }
+
+    etat.debutPince = null;
+
+  }
+
+  $('nbPinces').textContent = nbPinces;
+
+  $('nbParasites').textContent = nbParasites;
+
+}
+
+/* ==========================================
+   9. PERTE DE SUIVI
+========================================== */
+
+function mainPerdue() {
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  afficherEtat('MAIN PERDUE', '#ff5252');
+
+  $('ratio').textContent = '-';
+
+  $('conf').textContent = '-';
+
+  etat.pince = false;
+
+  etat.debut = null;
+
+  etat.debutPince = null;
+
+}
+
+/* ==========================================
+   10. TRAITEMENT DES RÉSULTATS
+========================================== */
+
+function traiterMain(res, t) {
+
+  const L = res.landmarks && res.landmarks[0];
+
+  if (!L) {
+
+    mainPerdue();
+
+    return;
+
+  }
+
+  const w = canvas.width;
+
+  const h = canvas.height;
+
+  // Calcul du ratio
+  const ratio = ratioPincement(L, w, h);
+
+  $('ratio').textContent = ratio.toFixed(3);
+
+  // Confiance de détection
+  const hands = res.handednesses || res.handedness;
+
+  const confiance =
+    hands && hands[0] && hands[0][0]
+      ? hands[0][0].score
+      : null;
+
+  $('conf').textContent =
+    confiance !== null
+      ? confiance.toFixed(2)
+      : '-';
+
+  // Configuration
+  const cfg = {
+
+    on: Number($('sOn').value),
+
+    off: Number($('sOff').value),
+
+    hyst: $('hyst').checked,
+
+    maintienMs: Number($('sMaintien').value)
+
+  };
+
+  // Mise à jour de la machine à états
+  const ev = majPincement(etat, ratio, t, cfg);
+
+  // Enregistrer les événements
+  if (ev) {
+
+    enregistrerEvenement(ev, t);
+
+  }
+
+  // Affichage
+  if (etat.pince) {
+
+    afficherEtat('PINCE (SELECT)', '#00e676');
+
+  } else {
+
+    afficherEtat('OUVERT', '#ffffff');
+
+  }
+
+  // Dessiner la main
+  dessinerMain(L, etat.pince);
+
+}
+
+/* ==========================================
+   11. BOUCLE VIDÉO
+========================================== */
+
+function boucle() {
+
+  if (!actif || !landmarker) return;
+
+  if (video.readyState >= 2 && video.currentTime !== dernierT) {
+
+    dernierT = video.currentTime;
+
+    const t = performance.now();
+
+    try {
+
+      const res = landmarker.detectForVideo(video, t);
+
+      traiterMain(res, t);
+
+    } catch (error) {
+
+      console.error('Erreur de détection :', error);
+
+      $('statut').textContent =
+        'Erreur pendant le traitement de la vidéo.';
+
+    }
+
+  }
+
+  if (actif) {
+
+    animationId = requestAnimationFrame(boucle);
+
+  }
+
+}
+
+/* ==========================================
+   12. DÉMARRAGE DE LA CAMÉRA
+========================================== */
+
+$('start').addEventListener('click', async () => {
+
+  if (actif || chargement) return;
+
+  chargement = true;
+
+  $('start').disabled = true;
+
+  $('statut').textContent =
+    'Chargement du modèle MediaPipe...';
+
+  try {
+
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+
+      throw new Error(
+        'Caméra indisponible. Utilisez HTTPS ou localhost.'
+      );
+
+    }
+
+    landmarker = landmarker || await creerLandmarker();
+
+    $('statut').textContent =
+      'Demande d’accès à la caméra...';
+
+    stream = await navigator.mediaDevices.getUserMedia({
+
+      video: {
+
+        facingMode: 'user',
+
+        width: { ideal: 640 },
+
+        height: { ideal: 480 }
+
+      },
+
+      audio: false
+
+    });
+
+    video.srcObject = stream;
+
+    await new Promise((resolve, reject) => {
+
+      video.onloadedmetadata = resolve;
+
+      video.onerror = reject;
+
+    });
+
+    await video.play();
+
+    canvas.width = video.videoWidth;
+
+    canvas.height = video.videoHeight;
+
+    dernierT = -1;
+
+    actif = true;
+
+    $('statut').textContent =
+      'Caméra active. Montrez votre main.';
+
+    $('start').disabled = true;
+
+    $('stop').disabled = false;
+
+    boucle();
+
+  } catch (error) {
+
+    console.error(error);
+
+    $('statut').textContent =
+      'Erreur : ' + error.message;
+
+    if (stream) {
+
+      stream.getTracks().forEach(track => track.stop());
+
+      stream = null;
+
+    }
+
+    video.srcObject = null;
+
+    $('start').disabled = false;
+
+  } finally {
+
+    chargement = false;
+
+  }
+
+});
+
+/* ==========================================
+   13. ARRÊT DE LA CAMÉRA
+========================================== */
+
+function arreterCamera() {
+
+  actif = false;
+
+  if (animationId !== null) {
+
+    cancelAnimationFrame(animationId);
+
+    animationId = null;
+
+  }
+
+  if (stream) {
+
+    stream.getTracks().forEach(track => track.stop());
+
+    stream = null;
+
+  }
+
+  video.pause();
+
+  video.srcObject = null;
+
+  landmarker && ctx.clearRect(
+    0, 0, canvas.width, canvas.height
+  );
+
+  mainPerdue();
+
+  $('statut').textContent = 'Caméra arrêtée.';
+
+  $('start').disabled = false;
+
+  $('stop').disabled = true;
+
+}
+
+$('stop').addEventListener('click', arreterCamera);
+
+/* ==========================================
+   14. RÉINITIALISATION
+========================================== */
+
+$('reset').addEventListener('click', () => {
+
+  nbPinces = 0;
+
+  nbParasites = 0;
+
+  etat.pince = false;
+
+  etat.debut = null;
+
+  etat.debutPince = null;
+
+  $('nbPinces').textContent = '0';
+
+  $('nbParasites').textContent = '0';
+
+  afficherEtat('STATISTIQUES RÉINITIALISÉES', '#90caf9');
+
+});
+
+window.addEventListener('beforeunload', () => {
+
+  if (stream) {
+
+    stream.getTracks().forEach(track => track.stop());
+
+  }
+
+  if (landmarker) {
+
+    landmarker.close();
+
+  }
+
+});
+
+</script>
+
+</body>
+</html>
