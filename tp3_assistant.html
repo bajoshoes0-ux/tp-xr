@@ -1,1 +1,1112 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>TP3 - Atelier : Assistant de maintenance</title>
+
+<script src="https://cdn.jsdelivr.net/npm/aframe@1.7.1/dist/aframe-v1.7.1.min.js"></script>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #22303c;
+  overflow: hidden;
+}
+
+#hud {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 10;
+  color: white;
+  pointer-events: none;
+  font: 600 16px system-ui, sans-serif;
+  text-shadow: 0 0 4px #000, 0 0 4px #000;
+  line-height: 1.5;
+}
+
+#repli {
+  position: fixed;
+  bottom: 12px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0 8px;
+}
+
+button {
+  font-size: 16px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 0;
+  background: #1565c0;
+  color: white;
+  cursor: pointer;
+}
+
+button.sec {
+  background: #455a64;
+}
+
+button.danger {
+  background: #c62828;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#confirmation {
+  position: fixed;
+  bottom: 75px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: none;
+  width: min(92%, 400px);
+  padding: 14px;
+  border-radius: 10px;
+  background: #fff3cd;
+  color: #263238;
+  text-align: center;
+}
+
+#confirmation button {
+  margin-top: 10px;
+}
+
+#fin {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #fffffff2;
+  padding: 20px;
+  display: none;
+  overflow: auto;
+  font: 16px system-ui, sans-serif;
+  color: #263238;
+}
+
+#fin pre {
+  background: #eee;
+  padding: 12px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
+
+#fin button {
+  margin: 5px;
+}
+
+#progression {
+  height: 8px;
+  background: #ddd;
+  border-radius: 10px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+#barreProgression {
+  height: 100%;
+  width: 0;
+  background: #2e7d32;
+  transition: width 0.3s;
+}
+
+a-scene {
+  width: 100%;
+  height: 100%;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- ==================================
+     HUD
+================================== -->
+
+<div id="hud">
+
+  <div id="titreEtape">
+    Assistant de maintenance
+  </div>
+
+  <div id="message">
+    Initialisation...
+  </div>
+
+  <div id="progression">
+    <div id="barreProgression"></div>
+  </div>
+
+  <div id="modeInfo"></div>
+
+</div>
+
+<!-- ==================================
+     CONFIRMATION
+================================== -->
+
+<div id="confirmation">
+
+  <b id="questionConf">
+    Confirmer la sélection ?
+  </b>
+
+  <div>
+    <button id="bConfirmer">Confirmer</button>
+    <button id="bRefuser" class="sec">Annuler</button>
+  </div>
+
+</div>
+
+<!-- ==================================
+     BOUTONS DE SECOURS
+================================== -->
+
+<div id="repli">
+
+  <button id="bValider">
+    Valider
+  </button>
+
+  <button id="bAide" class="sec">
+    Aide
+  </button>
+
+  <button id="bVoix" class="sec">
+    Voix
+  </button>
+
+</div>
+
+<!-- ==================================
+     RÉSULTATS
+================================== -->
+
+<div id="fin"></div>
+
+<!-- ==================================
+     SCÈNE 3D
+================================== -->
+
+<a-scene vr-mode-ui="enabled: false">
+
+  <a-sky color="#22303c"></a-sky>
+
+  <a-entity
+    light="type: ambient; intensity: 0.8">
+  </a-entity>
+
+  <a-entity
+    light="type: directional; intensity: 0.8"
+    position="1 3 2">
+  </a-entity>
+
+  <!-- Machine -->
+
+  <a-entity id="machine" position="0 1.4 -2">
+
+    <!-- Capot -->
+
+    <a-box
+      id="capot"
+      class="piece"
+      data-nom="capot"
+      position="-0.4 0 0"
+      width="0.35"
+      height="0.35"
+      depth="0.2"
+      material="color: #90a4ae; roughness: 0.5">
+    </a-box>
+
+    <!-- Vis -->
+
+    <a-sphere
+      id="vis"
+      class="piece"
+      data-nom="vis"
+      position="0 0 0"
+      radius="0.15"
+      material="color: #e57373; roughness: 0.4">
+    </a-sphere>
+
+    <!-- Filtre -->
+
+    <a-cylinder
+      id="filtre"
+      class="piece"
+      data-nom="filtre"
+      position="0.4 0 0"
+      radius="0.17"
+      height="0.3"
+      material="color: #64b5f6; roughness: 0.5">
+    </a-cylinder>
+
+    <!-- Étiquettes -->
+
+    <a-text
+      value="CAPOT"
+      position="-0.4 -0.3 0.12"
+      align="center"
+      color="white"
+      width="1.2">
+    </a-text>
+
+    <a-text
+      value="VIS"
+      position="0 -0.3 0.12"
+      align="center"
+      color="white"
+      width="1.2">
+    </a-text>
+
+    <a-text
+      value="FILTRE"
+      position="0.4 -0.3 0.12"
+      align="center"
+      color="white"
+      width="1.2">
+    </a-text>
+
+  </a-entity>
+
+  <!-- Caméra et curseur -->
+
+  <a-entity
+    id="tete"
+    camera
+    position="0 1.6 0"
+    look-controls>
+
+    <a-entity
+      id="curseur"
+      cursor="fuse: false; fuseTimeout: 1000"
+      raycaster="objects: .piece; far: 10"
+      position="0 0 -1"
+      geometry="primitive: ring; radiusInner: 0.012; radiusOuter: 0.02"
+      material="color: #fff; shader: flat">
+    </a-entity>
+
+  </a-entity>
+
+</a-scene>
+
+<script>
+
+/* ==========================================
+   1. CONFIGURATION
+========================================== */
+
+const params = new URLSearchParams(location.search);
+
+const CONFIG = {
+
+  modeSelection:
+    params.get('mode') === 'fuse' ? 'fuse' : 'tap',
+
+  dwellMs: Math.max(
+    300,
+    Math.min(5000, Number(params.get('dwell')) || 1000)
+  ),
+
+  confirmerValidation:
+    params.get('confirmer') !== '0',
+
+  voix:
+    params.get('voix') !== '0'
+
+};
+
+/* ==========================================
+   2. PROCÉDURE
+========================================== */
+
+const ETAPES = [
+
+  {
+    texte: 'Étape 1/3 : sélectionnez le CAPOT',
+    attendu: 'capot'
+  },
+
+  {
+    texte: 'Étape 2/3 : sélectionnez la VIS',
+    attendu: 'vis'
+  },
+
+  {
+    texte: 'Étape 3/3 : sélectionnez le FILTRE',
+    attendu: 'filtre'
+  }
+
+];
+
+const mesure = {
+
+  debut: null,
+
+  fin: null,
+
+  erreurs: 0,
+
+  aides: 0,
+
+  selections: 0,
+
+  validations: 0
+
+};
+
+let etape = 0;
+
+let selection = null;
+
+let enAttenteConfirmation = false;
+
+let termine = false;
+
+let timerAide = null;
+
+const $ = id => document.getElementById(id);
+
+const hud = $('hud');
+
+const curseur = $('curseur');
+
+/* ==========================================
+   3. AUDIO
+========================================== */
+
+let audioCtx = null;
+
+function bip(f = 600, d = 0.1) {
+
+  try {
+
+    audioCtx = audioCtx ||
+      new (window.AudioContext || window.webkitAudioContext)();
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const c = audioCtx;
+
+    const o = c.createOscillator();
+
+    const g = c.createGain();
+
+    o.frequency.value = f;
+
+    g.gain.value = 0.12;
+
+    o.connect(g);
+
+    g.connect(c.destination);
+
+    o.start();
+
+    o.stop(c.currentTime + d);
+
+  } catch (e) {
+
+    console.warn('Audio indisponible', e);
+
+  }
+
+}
+
+/* ==========================================
+   4. VIBRATIONS
+========================================== */
+
+function vibrer(m) {
+
+  if (navigator.vibrate) {
+
+    navigator.vibrate(m);
+
+  }
+
+}
+
+/* ==========================================
+   5. AFFICHAGE HUD
+========================================== */
+
+function msg(texte) {
+
+  if (termine) return;
+
+  if (ETAPES[etape]) {
+
+    $('titreEtape').textContent =
+      ETAPES[etape].texte;
+
+    $('message').textContent = texte;
+
+  }
+
+  $('barreProgression').style.width =
+    (etape / ETAPES.length * 100) + '%';
+
+}
+
+function mettreAJourMode() {
+
+  $('modeInfo').textContent =
+    CONFIG.modeSelection === 'fuse'
+      ? 'Mode : Regard seul | Maintien : ' + CONFIG.dwellMs + ' ms'
+      : 'Mode : Regard + toucher';
+
+}
+
+/* ==========================================
+   6. SURBRILLANCE DES PIÈCES
+========================================== */
+
+function surbrillance(el, on) {
+
+  if (!el) return;
+
+  el.setAttribute(
+    'material',
+    'emissive',
+    on ? '#ffee58' : '#000000'
+  );
+
+  el.setAttribute(
+    'material',
+    'emissiveIntensity',
+    on ? 0.8 : 0
+  );
+
+}
+
+function nettoyerSelection() {
+
+  document.querySelectorAll('.piece').forEach(p => {
+
+    surbrillance(p, false);
+
+  });
+
+  selection = null;
+
+}
+
+/* ==========================================
+   7. INITIALISATION DU CURSEUR
+========================================== */
+
+curseur.setAttribute('cursor', {
+
+  fuse: CONFIG.modeSelection === 'fuse',
+
+  fuseTimeout: CONFIG.dwellMs
+
+});
+
+mettreAJourMode();
+
+let dernierAppui = 0;
+
+window.addEventListener('pointerdown', () => {
+
+  dernierAppui = performance.now();
+
+}, true);
+
+/* ==========================================
+   8. DÉMARRAGE DU CHRONOMÈTRE
+========================================== */
+
+function demarrerChronometre() {
+
+  if (mesure.debut === null) {
+
+    mesure.debut = performance.now();
+
+  }
+
+}
+
+/* ==========================================
+   9. SÉLECTION D'UNE PIÈCE
+========================================== */
+
+function selectionner(el, origine) {
+
+  if (termine || !el) return;
+
+  if (!el.classList.contains('piece')) return;
+
+  // Pas de sélection pendant une confirmation
+  if (enAttenteConfirmation) {
+
+    msg('Confirmez ou annulez votre sélection actuelle.');
+
+    return;
+
+  }
+
+  demarrerChronometre();
+
+  nettoyerSelection();
+
+  selection = el.getAttribute('data-nom');
+
+  mesure.selections++;
+
+  surbrillance(el, true);
+
+  bip(600);
+
+  vibrer(20);
+
+  msg(
+    'Pièce sélectionnée : ' +
+    selection.toUpperCase() +
+    ' (' + origine + ')'
+  );
+
+}
+
+/* ==========================================
+   10. MODE FUSE : REGARD SEUL
+========================================== */
+
+curseur.addEventListener('click', e => {
+
+  if (CONFIG.modeSelection !== 'fuse') return;
+
+  // Ignorer un clic physique
+  if (performance.now() - dernierAppui < 300) return;
+
+  const el = e.detail.intersectedEl;
+
+  if (!el) return;
+
+  selectionner(el, 'regard');
+
+});
+
+/* ==========================================
+   11. MODE TAP : REGARD + TOUCHER
+========================================== */
+
+function selectionAuToucher() {
+
+  if (CONFIG.modeSelection !== 'tap') return;
+
+  if (termine) return;
+
+  const intersections =
+    curseur.components.raycaster.intersections;
+
+  if (!intersections || !intersections.length) return;
+
+  const el = intersections[0].object.el;
+
+  if (!el) return;
+
+  selectionner(el, 'regard + toucher');
+
+}
+
+function installerInteractionTap() {
+
+  const scene = document.querySelector('a-scene');
+
+  const verifier = () => {
+
+    if (!scene.canvas) {
+
+      requestAnimationFrame(verifier);
+
+      return;
+
+    }
+
+    scene.canvas.addEventListener(
+      'pointerdown',
+      selectionAuToucher
+    );
+
+  };
+
+  verifier();
+
+}
+
+installerInteractionTap();
+
+/* ==========================================
+   12. VALIDATION
+========================================== */
+
+function valider() {
+
+  if (termine || !ETAPES[etape]) return;
+
+  if (!selection) {
+
+    msg('Aucune pièce sélectionnée.');
+
+    bip(200, 0.2);
+
+    return;
+
+  }
+
+  if (
+    CONFIG.confirmerValidation &&
+    !enAttenteConfirmation
+  ) {
+
+    enAttenteConfirmation = true;
+
+    $('questionConf').textContent =
+      'Confirmer la sélection : ' +
+      selection.toUpperCase() + ' ?';
+
+    $('confirmation').style.display = 'block';
+
+    $('bValider').textContent = 'Confirmation en attente';
+
+    $('bValider').disabled = true;
+
+    bip(450);
+
+    return;
+
+  }
+
+  executerValidation();
+
+}
+
+/* ==========================================
+   13. EXÉCUTION DE LA VALIDATION
+========================================== */
+
+function executerValidation() {
+
+  if (!selection || !ETAPES[etape] || termine) return;
+
+  enAttenteConfirmation = false;
+
+  $('confirmation').style.display = 'none';
+
+  $('bValider').textContent = 'Valider';
+
+  $('bValider').disabled = false;
+
+  mesure.validations++;
+
+  if (selection === ETAPES[etape].attendu) {
+
+    etape++;
+
+    selection = null;
+
+    nettoyerSelection();
+
+    bip(880, 0.2);
+
+    vibrer([40, 60, 40]);
+
+    if (etape >= ETAPES.length) {
+
+      terminer();
+
+      return;
+
+    }
+
+    msg('Bonne réponse ! Étape suivante.');
+
+  } else {
+
+    mesure.erreurs++;
+
+    bip(180, 0.3);
+
+    vibrer([100, 50, 100]);
+
+    nettoyerSelection();
+
+    msg('Mauvaise pièce. Réessayez.');
+
+  }
+
+}
+
+/* ==========================================
+   14. CONFIRMATION
+========================================== */
+
+$('bConfirmer').onclick = () => {
+
+  if (!enAttenteConfirmation) return;
+
+  executerValidation();
+
+};
+
+function annulerConfirmation() {
+
+  enAttenteConfirmation = false;
+
+  $('confirmation').style.display = 'none';
+
+  $('bValider').textContent = 'Valider';
+
+  $('bValider').disabled = false;
+
+  nettoyerSelection();
+
+  msg('Sélection annulée.');
+
+}
+
+$('bRefuser').onclick = annulerConfirmation;
+
+/* ==========================================
+   15. AIDE
+========================================== */
+
+function aide() {
+
+  if (termine || !ETAPES[etape]) return;
+
+  mesure.aides++;
+
+  const el = document.querySelector(
+    '.piece[data-nom="' + ETAPES[etape].attendu + '"]'
+  );
+
+  if (!el) return;
+
+  // Annuler une ancienne animation
+  clearTimeout(timerAide);
+
+  surbrillance(el, true);
+
+  bip(750);
+
+  msg('Aide : la pièce attendue est surlignée.');
+
+  timerAide = setTimeout(() => {
+
+    if (selection !== ETAPES[etape]?.attendu) {
+
+      surbrillance(el, false);
+
+    }
+
+  }, 2000);
+
+}
+
+/* ==========================================
+   16. COMMANDES VOCALES
+========================================== */
+
+function normaliser(txt) {
+
+  return txt.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+}
+
+function commande(txt) {
+
+  const t = normaliser(txt);
+
+  if (/\b(valid|confirme)\w*/.test(t)) {
+
+    valider();
+
+  } else if (/\b(aide|secours)\b/.test(t)) {
+
+    aide();
+
+  } else if (/\b(annul|stop)\w*/.test(t)) {
+
+    if (enAttenteConfirmation) {
+
+      annulerConfirmation();
+
+    } else {
+
+      nettoyerSelection();
+
+      msg('Sélection annulée.');
+
+    }
+
+  } else {
+
+    msg('Commande non comprise : ' + txt);
+
+  }
+
+}
+
+const SR =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+let reconnaissance = null;
+
+let ecoute = false;
+
+if (!SR || !CONFIG.voix) {
+
+  $('bVoix').style.display = 'none';
+
+} else {
+
+  reconnaissance = new SR();
+
+  reconnaissance.lang = 'fr-FR';
+
+  reconnaissance.continuous = false;
+
+  reconnaissance.interimResults = false;
+
+  reconnaissance.onstart = () => {
+
+    ecoute = true;
+
+    msg('Je vous écoute...');
+
+    $('bVoix').textContent = 'Écoute en cours';
+
+  };
+
+  reconnaissance.onend = () => {
+
+    ecoute = false;
+
+    $('bVoix').textContent = 'Voix';
+
+  };
+
+  reconnaissance.onresult = e => {
+
+    const texte = e.results[0][0].transcript;
+
+    msg('Commande reçue : ' + texte);
+
+    commande(texte);
+
+  };
+
+  reconnaissance.onerror = e => {
+
+    msg('Erreur vocale : ' + e.error);
+
+  };
+
+  $('bVoix').onclick = () => {
+
+    if (ecoute) {
+
+      reconnaissance.stop();
+
+      return;
+
+    }
+
+    try {
+
+      reconnaissance.start();
+
+    } catch (e) {
+
+      console.warn(e);
+
+    }
+
+  };
+
+}
+
+/* ==========================================
+   17. BOUTONS DE SECOURS
+========================================== */
+
+$('bValider').onclick = valider;
+
+$('bAide').onclick = aide;
+
+/* ==========================================
+   18. FIN ET RÉSULTATS
+========================================== */
+
+function terminer() {
+
+  termine = true;
+
+  mesure.fin = performance.now();
+
+  const secondes = mesure.debut !== null
+    ? ((mesure.fin - mesure.debut) / 1000).toFixed(1)
+    : '0.0';
+
+  const donnees = {
+
+    mode: CONFIG.modeSelection,
+
+    dwell: CONFIG.dwellMs,
+
+    confirmer: CONFIG.confirmerValidation ? 1 : 0,
+
+    secondes: Number(secondes),
+
+    erreurs: mesure.erreurs,
+
+    aides: mesure.aides,
+
+    selections: mesure.selections,
+
+    validations: mesure.validations
+
+  };
+
+  const ligne = [
+
+    donnees.mode,
+
+    donnees.dwell,
+
+    donnees.confirmer,
+
+    donnees.secondes,
+
+    donnees.erreurs,
+
+    donnees.aides,
+
+    donnees.selections,
+
+    donnees.validations
+
+  ].join(';');
+
+  const fin = $('fin');
+
+  fin.innerHTML = '';
+
+  const titre = document.createElement('h2');
+
+  titre.textContent = 'Maintenance terminée !';
+
+  const infos = document.createElement('pre');
+
+  infos.textContent =
+    'Temps : ' + secondes + ' secondes\n' +
+    'Erreurs : ' + mesure.erreurs + '\n' +
+    'Aides : ' + mesure.aides + '\n' +
+    'Sélections : ' + mesure.selections + '\n' +
+    'Validations : ' + mesure.validations;
+
+  const description = document.createElement('p');
+
+  description.textContent =
+    'Données expérimentales à intégrer dans votre compte rendu :';
+
+  const csv = document.createElement('pre');
+
+  csv.textContent =
+    'mode;dwell;confirmer;secondes;erreurs;aides;selections;validations\n' +
+    ligne;
+
+  const telecharger = document.createElement('button');
+
+  telecharger.textContent = 'Télécharger CSV';
+
+  telecharger.onclick = () => {
+
+    const contenu =
+      'mode;dwell;confirmer;secondes;erreurs;aides;selections;validations\n' +
+      ligne;
+
+    const blob = new Blob(
+      ['\uFEFF' + contenu],
+      { type: 'text/csv;charset=utf-8' }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const lien = document.createElement('a');
+
+    lien.href = url;
+
+    lien.download = 'resultats_maintenance.csv';
+
+    lien.click();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  };
+
+  const recommencer = document.createElement('button');
+
+  recommencer.className = 'sec';
+
+  recommencer.textContent = 'Nouvel essai';
+
+  recommencer.onclick = () => location.reload();
+
+  fin.append(
+    titre,
+    infos,
+    description,
+    csv,
+    telecharger,
+    recommencer
+  );
+
+  fin.style.display = 'block';
+
+  $('barreProgression').style.width = '100%';
+
+  $('titreEtape').textContent = 'Procédure terminée';
+
+  $('message').textContent = 'Toutes les pièces ont été validées.';
+
+  console.log('RESULTAT :', donnees);
+
+}
+
+/* ==========================================
+   19. INITIALISATION FINALE
+========================================== */
+
+msg('Visez une pièce pour commencer.');
+
+</script>
+
+</body>
+</html>
