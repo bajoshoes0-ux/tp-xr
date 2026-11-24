@@ -1,1 +1,707 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>TP3 - Sélection par le regard (Midas Touch)</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.7.1/dist/aframe-v1.7.1.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: system-ui, sans-serif;
+    }
+
+    #barre {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    #barre button {
+      font-size: 14px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 0;
+      background: #455a64;
+      color: white;
+      cursor: pointer;
+    }
+
+    #barre button.actif {
+      background: #1565c0;
+    }
+
+    #etat {
+      position: fixed;
+      bottom: 12px;
+      left: 10px;
+      right: 10px;
+      z-index: 10;
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      text-align: center;
+      text-shadow: 0 0 5px black;
+      pointer-events: none;
+    }
+
+    #resultats {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      overflow: auto;
+      padding: 20px;
+      background: #ffffff;
+      color: #222;
+    }
+
+    #resultats pre {
+      padding: 12px;
+      background: #eee;
+      border-radius: 8px;
+      white-space: pre-wrap;
+    }
+
+    #resultats button {
+      padding: 12px 18px;
+      border: none;
+      border-radius: 8px;
+      background: #1565c0;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="barre">
+    <button id="mA">Mode A : regard seul (1 s)</button>
+    <button id="mB" class="actif">Mode B : regard + toucher</button>
+    <button id="test">Test Midas (20 s)</button>
+  </div>
+
+  <div id="etat">Mode B actif : visez un bouton puis touchez l'écran.</div>
+
+  <div id="resultats"></div>
+
+  <a-scene vr-mode-ui="enabled: false">
+
+    <a-sky color="#1f2a36"></a-sky>
+
+    <a-entity id="boutons"></a-entity>
+
+    <a-entity
+      id="tete"
+      camera
+      position="0 1.6 0"
+      look-controls>
+
+      <a-entity
+        id="curseur"
+        cursor="fuse: false; fuseTimeout: 1000"
+        raycaster="objects: .bouton; far: 10"
+        position="0 0 -1"
+        geometry="primitive: ring; radiusInner: 0.012; radiusOuter: 0.02"
+        material="color: white; shader: flat">
+      </a-entity>
+
+    </a-entity>
+
+  </a-scene>
+
+<script>
+
+/* =========================================
+   1. PARAMÈTRES
+========================================= */
+
+const params = new URLSearchParams(location.search);
+
+const TAILLE_DEG = Math.max(
+  0.1,
+  Math.min(15, parseFloat(params.get('deg')) || 3)
+);
+
+const DIST = 2;
+const DWELL_MS = 1000;
+const DUREE_TEST = 20;
+
+/* =========================================
+   2. CALCUL DE LA TAILLE RÉELLE
+========================================= */
+
+function tailleDepuisAngle(angleDeg, dist) {
+
+  return 2 * dist * Math.tan(
+    (angleDeg * Math.PI / 180) / 2
+  );
+
+}
+
+const T = tailleDepuisAngle(TAILLE_DEG, DIST);
+
+/* =========================================
+   3. DÉFINITION DES BOUTONS
+========================================= */
+
+const DEFS = [
+
+  {
+    nom: 'Suivant',
+    az: -24,
+    couleur: '#2e7d32'
+  },
+
+  {
+    nom: 'Précédent',
+    az: -8,
+    couleur: '#1565c0'
+  },
+
+  {
+    nom: 'Aide',
+    az: 8,
+    couleur: '#f9a825'
+  },
+
+  {
+    nom: 'SUPPRIMER',
+    az: 24,
+    couleur: '#c62828'
+  }
+
+];
+
+const conteneur = document.getElementById('boutons');
+
+/* =========================================
+   4. CRÉATION DES BOUTONS 3D
+========================================= */
+
+DEFS.forEach(d => {
+
+  const angle = d.az * Math.PI / 180;
+
+  const bouton = document.createElement('a-plane');
+
+  bouton.setAttribute('class', 'bouton');
+
+  bouton.setAttribute('data-nom', d.nom);
+
+  bouton.setAttribute('width', T);
+
+  bouton.setAttribute('height', T);
+
+  bouton.setAttribute('position', {
+
+    x: DIST * Math.sin(angle),
+
+    y: 1.6,
+
+    z: -DIST * Math.cos(angle)
+
+  });
+
+  // Orientation de la face vers la caméra
+  bouton.setAttribute('rotation', {
+    x: 0,
+    y: -d.az,
+    z: 0
+  });
+
+  bouton.setAttribute(
+    'material',
+    'color: ' + d.couleur +
+    '; shader: flat; side: double'
+  );
+
+  // Texte du bouton
+  const texte = document.createElement('a-text');
+
+  texte.setAttribute('value', d.nom);
+
+  texte.setAttribute('align', 'center');
+
+  texte.setAttribute('anchor', 'center');
+
+  texte.setAttribute('width', Math.max(T * 3, 0.6));
+
+  texte.setAttribute('position', {
+    x: 0,
+    y: 0,
+    z: 0.01
+  });
+
+  texte.setAttribute('color', '#ffffff');
+
+  bouton.appendChild(texte);
+
+  conteneur.appendChild(bouton);
+
+});
+
+/* =========================================
+   5. VARIABLES GLOBALES
+========================================= */
+
+const curseur = document.getElementById('curseur');
+
+const etat = document.getElementById('etat');
+
+const resultats = document.getElementById('resultats');
+
+let mode = 'B';
+
+let activations = 0;
+
+let journal = [];
+
+let testActif = false;
+
+let debutTest = 0;
+
+let cibleActuelle = null;
+
+let debutFuse = null;
+
+let dernierAppui = 0;
+
+let testInterval = null;
+
+let testTimeout = null;
+
+/* =========================================
+   6. GESTION DU MODE A ET MODE B
+========================================= */
+
+function choisirMode(m) {
+
+  mode = m;
+
+  // Désactivation de l'ancien fuse avant changement
+  debutFuse = null;
+
+  curseur.setAttribute('cursor', {
+    fuse: m === 'A',
+    fuseTimeout: DWELL_MS
+  });
+
+  document.getElementById('mA').classList.toggle(
+    'actif',
+    m === 'A'
+  );
+
+  document.getElementById('mB').classList.toggle(
+    'actif',
+    m === 'B'
+  );
+
+  if (m === 'A') {
+
+    etat.textContent =
+      'Mode A : maintenez votre regard 1 seconde sur un bouton.';
+
+  } else {
+
+    etat.textContent =
+      'Mode B : visez un bouton puis touchez l’écran.';
+
+  }
+
+}
+
+document.getElementById('mA').onclick = () => {
+  choisirMode('A');
+};
+
+document.getElementById('mB').onclick = () => {
+  choisirMode('B');
+};
+
+/* =========================================
+   7. DÉTECTION DU REGARD
+========================================= */
+
+curseur.addEventListener('raycaster-intersection', function(e) {
+
+  if (!e.detail.els.length) return;
+
+  cibleActuelle = e.detail.els[0];
+
+});
+
+curseur.addEventListener('raycaster-intersection-cleared', function() {
+
+  cibleActuelle = null;
+
+  debutFuse = null;
+
+  curseur.object3D.scale.set(1, 1, 1);
+
+});
+
+/* =========================================
+   8. ANIMATION DU CURSEUR
+========================================= */
+
+curseur.addEventListener('fusing', function() {
+
+  debutFuse = performance.now();
+
+});
+
+curseur.addEventListener('mouseleave', function() {
+
+  debutFuse = null;
+
+  curseur.object3D.scale.set(1, 1, 1);
+
+});
+
+function animationCurseur() {
+
+  if (debutFuse !== null && mode === 'A') {
+
+    const progression = Math.min(
+      1,
+      (performance.now() - debutFuse) / DWELL_MS
+    );
+
+    const taille = 1 - (0.7 * progression);
+
+    curseur.object3D.scale.set(
+      taille,
+      taille,
+      1
+    );
+
+  }
+
+  requestAnimationFrame(animationCurseur);
+
+}
+
+animationCurseur();
+
+/* =========================================
+   9. ACTIVATION DES BOUTONS
+========================================= */
+
+function activerBouton(el, origine) {
+
+  if (!el || !el.classList.contains('bouton')) return;
+
+  if (testActif) {
+
+    // Enregistrer uniquement les activations involontaires
+    activations++;
+
+  }
+
+  const nom = el.getAttribute('data-nom');
+
+  const maintenant = performance.now();
+
+  journal.push({
+
+    temps_ms: Math.round(maintenant - debutTest),
+
+    nom: nom,
+
+    mode: mode,
+
+    origine: origine
+
+  });
+
+  etat.textContent =
+    'Activé : ' + nom +
+    ' | Mode ' + mode +
+    ' | Total : ' + activations;
+
+  // Feedback visuel
+  el.setAttribute('material', 'opacity', 0.3);
+
+  setTimeout(() => {
+
+    if (el.parentNode) {
+      el.setAttribute('material', 'opacity', 1);
+    }
+
+  }, 250);
+
+  if (navigator.vibrate) {
+    navigator.vibrate(30);
+  }
+
+}
+
+/* =========================================
+   10. MODE A : REGARD SEUL
+========================================= */
+
+curseur.addEventListener('click', function(e) {
+
+  if (mode !== 'A') return;
+
+  const el = e.detail.intersectedEl;
+
+  if (!el) return;
+
+  // Ignorer les événements de clic physiques
+  if (performance.now() - dernierAppui < 300) return;
+
+  activerBouton(el, 'regard');
+
+});
+
+/* =========================================
+   11. MODE B : REGARD + TOUCHER
+========================================= */
+
+function enregistrerToucher(e) {
+
+  dernierAppui = performance.now();
+
+  if (mode !== 'B') return;
+
+  const intersection = curseur.components.raycaster.intersections;
+
+  if (!intersection || intersection.length === 0) return;
+
+  const el = intersection[0].object.el;
+
+  if (!el || !el.classList.contains('bouton')) return;
+
+  activerBouton(el, 'toucher');
+
+}
+
+window.addEventListener('pointerdown', enregistrerToucher, true);
+
+/* =========================================
+   12. TEST MIDAS TOUCH - 20 SECONDES
+========================================= */
+
+document.getElementById('test').onclick = function() {
+
+  if (testActif) return;
+
+  testActif = true;
+
+  activations = 0;
+
+  journal = [];
+
+  debutTest = performance.now();
+
+  let reste = DUREE_TEST;
+
+  etat.textContent =
+    'TEST MIDAS : regardez les boutons sans vouloir les activer.';
+
+  this.disabled = true;
+
+  testInterval = setInterval(() => {
+
+    reste--;
+
+    etat.textContent =
+      'TEST MIDAS : parcourez les boutons du regard... ' +
+      reste + ' secondes restantes.';
+
+    if (reste <= 0) {
+
+      terminerTest();
+
+    }
+
+  }, 1000);
+
+  testTimeout = setTimeout(() => {
+
+    if (testActif) terminerTest();
+
+  }, DUREE_TEST * 1000);
+
+};
+
+/* =========================================
+   13. FIN DU TEST
+========================================= */
+
+function terminerTest() {
+
+  if (!testActif) return;
+
+  clearInterval(testInterval);
+
+  clearTimeout(testTimeout);
+
+  testActif = false;
+
+  document.getElementById('test').disabled = false;
+
+  const total = activations;
+
+  etat.textContent =
+    'Test terminé : ' + total +
+    ' activation(s) involontaire(s) en ' +
+    DUREE_TEST + ' secondes.';
+
+  const donnees = {
+
+    mode: mode,
+
+    taille_angulaire: TAILLE_DEG,
+
+    distance: DIST,
+
+    duree_secondes: DUREE_TEST,
+
+    activations_involontaires: total,
+
+    journal: journal
+
+  };
+
+  console.log(
+    'RESULTATS MIDAS TOUCH:',
+    JSON.stringify(donnees, null, 2)
+  );
+
+  afficherResultats(donnees);
+
+}
+
+/* =========================================
+   14. AFFICHAGE DES RÉSULTATS
+========================================= */
+
+function afficherResultats(data) {
+
+  resultats.innerHTML = '';
+
+  const titre = document.createElement('h2');
+
+  titre.textContent = 'Résultats du test Midas Touch';
+
+  const infos = document.createElement('pre');
+
+  infos.textContent =
+    'Mode : ' + data.mode + '\n' +
+    'Taille angulaire : ' + data.taille_angulaire + '°\n' +
+    'Distance : ' + data.distance + ' m\n' +
+    'Durée : ' + data.duree_secondes + ' secondes\n' +
+    'Activations involontaires : ' +
+    data.activations_involontaires;
+
+  const boutonJSON = document.createElement('button');
+
+  boutonJSON.textContent = 'Télécharger JSON';
+
+  boutonJSON.onclick = () => {
+
+    const blob = new Blob(
+      [JSON.stringify(data, null, 2)],
+      { type: 'application/json' }
+    );
+
+    telecharger(blob, 'resultats_midas.json');
+
+  };
+
+  const boutonCSV = document.createElement('button');
+
+  boutonCSV.textContent = 'Télécharger CSV';
+
+  boutonCSV.style.marginLeft = '10px';
+
+  boutonCSV.onclick = () => {
+
+    let csv = 'temps_ms;nom;mode;origine\n';
+
+    data.journal.forEach(item => {
+
+      csv +=
+        item.temps_ms + ';' +
+        item.nom + ';' +
+        item.mode + ';' +
+        item.origine + '\n';
+
+    });
+
+    const blob = new Blob(
+      ['\uFEFF' + csv],
+      { type: 'text/csv;charset=utf-8;' }
+    );
+
+    telecharger(blob, 'resultats_midas.csv');
+
+  };
+
+  const fermer = document.createElement('button');
+
+  fermer.textContent = 'Fermer';
+
+  fermer.style.marginLeft = '10px';
+
+  fermer.onclick = () => {
+
+    resultats.style.display = 'none';
+
+  };
+
+  resultats.append(
+    titre,
+    infos,
+    boutonJSON,
+    boutonCSV,
+    fermer
+  );
+
+  resultats.style.display = 'block';
+
+}
+
+/* =========================================
+   15. TÉLÉCHARGEMENT
+========================================= */
+
+function telecharger(blob, nom) {
+
+  const url = URL.createObjectURL(blob);
+
+  const lien = document.createElement('a');
+
+  lien.href = url;
+
+  lien.download = nom;
+
+  lien.click();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+}
+
+</script>
+
+</body>
+</html>
