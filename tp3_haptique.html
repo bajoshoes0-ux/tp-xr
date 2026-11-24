@@ -1,1 +1,753 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>TP3 - Haptique et audio spatial</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 14px;
+  font-size: 17px;
+  background: #f5f7fa;
+  color: #263238;
+}
+
+h2 {
+  margin-top: 28px;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 8px;
+}
+
+button {
+  font-size: 16px;
+  padding: 12px 16px;
+  margin: 4px 4px 4px 0;
+  border-radius: 8px;
+  border: 0;
+  background: #1565c0;
+  color: #fff;
+  cursor: pointer;
+}
+
+button.sec {
+  background: #546e7a;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input[type=range] {
+  width: 100%;
+  margin: 10px 0;
+}
+
+#flash {
+  width: 100%;
+  height: 70px;
+  background: #ddd;
+  border-radius: 8px;
+  margin: 12px 0;
+  transition: background 0.05s;
+}
+
+pre {
+  background: #eceff1;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.carte {
+  background: white;
+  padding: 14px;
+  margin: 12px 0;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+}
+
+.valeur {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1565c0;
+}
+
+#support {
+  padding: 12px;
+  background: #e3f2fd;
+  border-radius: 8px;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>Haptique et audio spatial</h1>
+
+<p id="support">Vérification des capacités de votre appareil...</p>
+
+<!-- ===================================
+     A. VIBRATIONS
+=================================== -->
+
+<h2>A. Motifs de vibration</h2>
+
+<div class="carte">
+
+  <p>Testez différents motifs haptiques :</p>
+
+  <button data-v="30">
+    Tic (30 ms)
+  </button>
+
+  <button data-v="40,60,40">
+    Validation
+  </button>
+
+  <button data-v="200,100,200,100,200">
+    Alerte
+  </button>
+
+  <button data-v="15,30,25,30,40,30,60">
+    Rampe
+  </button>
+
+</div>
+
+<div class="carte">
+
+  <h3>Simulation de collision</h3>
+
+  <p>
+    Vitesse :
+    <b id="vit">1.5</b> m/s
+  </p>
+
+  <input
+    type="range"
+    id="vitesse"
+    min="0.2"
+    max="3"
+    step="0.1"
+    value="1.5">
+
+  <button id="bColl">
+    Simuler une collision
+  </button>
+
+  <p>
+    Intensité estimée :
+    <b id="intensite">50 %</b>
+  </p>
+
+</div>
+
+<!-- ===================================
+     B. AUDIO SPATIAL
+=================================== -->
+
+<h2>B. Audio spatial 3D</h2>
+
+<div class="carte">
+
+  <p>
+    Utilisez des écouteurs pour une meilleure expérience.
+  </p>
+
+  <p>
+    Azimut de la source :
+    <b id="azVal">0</b>°
+  </p>
+
+  <input
+    type="range"
+    id="az"
+    min="-90"
+    max="90"
+    step="5"
+    value="0">
+
+  <p>
+    <button id="bSon">
+      Jouer le son
+    </button>
+  </p>
+
+  <p>
+    <button class="sec" data-az="-90">Extrême gauche</button>
+    <button class="sec" data-az="-45">Gauche</button>
+    <button class="sec" data-az="0">Devant</button>
+    <button class="sec" data-az="45">Droite</button>
+    <button class="sec" data-az="90">Extrême droite</button>
+  </p>
+
+</div>
+
+<!-- ===================================
+     JEU DE LOCALISATION
+=================================== -->
+
+<h2>Jeu de localisation sonore</h2>
+
+<div class="carte">
+
+  <p>
+    Fermez les yeux. Écoutez le son et devinez sa direction.
+  </p>
+
+  <button id="bJeu">
+    Nouveau son mystère
+  </button>
+
+  <p>Votre réponse :</p>
+
+  <button class="sec" data-rep="-60">Gauche</button>
+  <button class="sec" data-rep="0">Devant</button>
+  <button class="sec" data-rep="60">Droite</button>
+
+  <div class="valeur" id="scoreJeu">
+    Score : 0 / 0
+  </div>
+
+  <p id="feedback"></p>
+
+</div>
+
+<!-- ===================================
+     C. SYNCHRONISATION
+=================================== -->
+
+<h2>C. Synchronisation son / vibration / image</h2>
+
+<div class="carte">
+
+  <p>
+    Décalage de la vibration :
+    <b id="dec">0</b> ms après le son
+  </p>
+
+  <input
+    type="range"
+    id="decalage"
+    min="0"
+    max="300"
+    step="10"
+    value="0">
+
+  <button id="bSync">
+    Déclencher la synchronisation
+  </button>
+
+  <div id="flash"></div>
+
+  <p id="syncInfo">
+    En attente du test.
+  </p>
+
+  <p>
+    Notez à partir de quel décalage vous percevez
+    deux événements distincts.
+  </p>
+
+</div>
+
+<!-- ===================================
+     STATISTIQUES
+=================================== -->
+
+<h2>Statistiques</h2>
+
+<div class="carte">
+
+  <p>
+    Tests de localisation :
+    <b id="totalTests">0</b>
+  </p>
+
+  <p>
+    Réponses correctes :
+    <b id="totalBons">0</b>
+  </p>
+
+  <p>
+    Précision :
+    <b id="precision">0 %</b>
+  </p>
+
+  <button class="sec" id="reset">
+    Réinitialiser
+  </button>
+
+</div>
+
+<script>
+
+/* ==========================================
+   1. UTILITAIRES
+========================================== */
+
+const $ = id => document.getElementById(id);
+
+function flash(couleur, duree = 150) {
+
+  $('flash').style.background = couleur;
+
+  setTimeout(() => {
+
+    $('flash').style.background = '#ddd';
+
+  }, duree);
+
+}
+
+/* ==========================================
+   2. DÉTECTION DES CAPACITÉS
+========================================== */
+
+const vibrationDisponible =
+  typeof navigator.vibrate === 'function';
+
+const audioDisponible =
+  !!(window.AudioContext || window.webkitAudioContext);
+
+$('support').textContent =
+
+  'Vibration : ' +
+  (vibrationDisponible ? 'Disponible.' : 'Non disponible.') +
+
+  ' Audio spatial : ' +
+  (audioDisponible ? 'Disponible.' : 'Non disponible.') +
+
+  ' Solution de secours : retour visuel.';
+
+/* ==========================================
+   3. A. VIBRATIONS
+========================================== */
+
+function vibrer(motif) {
+
+  const pattern = Array.isArray(motif)
+    ? motif
+    : [motif];
+
+  if (vibrationDisponible) {
+
+    try {
+
+      const success = navigator.vibrate(pattern);
+
+      if (success) return;
+
+    } catch (error) {
+
+      console.warn('Vibration impossible :', error);
+
+    }
+
+  }
+
+  // Substitution visuelle
+  flash('#ffb300', 180);
+
+}
+
+document.querySelectorAll('[data-v]').forEach(button => {
+
+  button.addEventListener('click', () => {
+
+    const motif = button.dataset.v
+      .split(',')
+      .map(Number);
+
+    vibrer(motif);
+
+  });
+
+});
+
+/* ==========================================
+   4. SIMULATION DE COLLISION
+========================================== */
+
+$('vitesse').addEventListener('input', e => {
+
+  $('vit').textContent = e.target.value;
+
+});
+
+$('bColl').addEventListener('click', () => {
+
+  const vitesse = Number($('vitesse').value);
+
+  const amplitude = Math.min(1, vitesse / 3);
+
+  const duree = Math.round(15 + 85 * amplitude);
+
+  $('intensite').textContent =
+    Math.round(amplitude * 100) + ' %';
+
+  vibrer(duree);
+
+});
+
+/*
+ Important :
+ L'API Vibration ne permet pas de régler
+ directement l'amplitude physique.
+ Ici, on simule l'intensité en faisant varier
+ la durée de vibration.
+*/
+
+/* ==========================================
+   5. B. AUDIO SPATIAL
+========================================== */
+
+let ctx = null;
+
+function audio() {
+
+  if (!audioDisponible) {
+
+    throw new Error('Web Audio API indisponible.');
+
+  }
+
+  if (!ctx) {
+
+    ctx = new (
+      window.AudioContext ||
+      window.webkitAudioContext
+    )();
+
+  }
+
+  if (ctx.state === 'suspended') {
+
+    ctx.resume();
+
+  }
+
+  return ctx;
+
+}
+
+/* ==========================================
+   6. CRÉATION DU SON SPATIAL
+========================================== */
+
+function jouerSon(azimutDeg) {
+
+  const c = audio();
+
+  const panner = c.createPanner();
+
+  panner.panningModel = 'HRTF';
+
+  panner.distanceModel = 'inverse';
+
+  panner.refDistance = 1;
+
+  panner.maxDistance = 10;
+
+  panner.rolloffFactor = 1;
+
+  const angle = azimutDeg * Math.PI / 180;
+
+  const distance = 2;
+
+  // Position de la source sonore
+  panner.positionX.value =
+    distance * Math.sin(angle);
+
+  panner.positionY.value = 0;
+
+  panner.positionZ.value =
+    -distance * Math.cos(angle);
+
+  const osc = c.createOscillator();
+
+  const gain = c.createGain();
+
+  osc.type = 'sawtooth';
+
+  osc.frequency.value = 330;
+
+  const maintenant = c.currentTime;
+
+  gain.gain.setValueAtTime(
+    0.0001,
+    maintenant
+  );
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.20,
+    maintenant + 0.03
+  );
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.0001,
+    maintenant + 0.6
+  );
+
+  osc.connect(gain);
+
+  gain.connect(panner);
+
+  panner.connect(c.destination);
+
+  osc.start(maintenant);
+
+  osc.stop(maintenant + 0.65);
+
+}
+
+/* ==========================================
+   7. CONTRÔLE DE L'AZIMUT
+========================================== */
+
+$('az').addEventListener('input', e => {
+
+  $('azVal').textContent = e.target.value;
+
+});
+
+$('bSon').addEventListener('click', () => {
+
+  try {
+
+    jouerSon(Number($('az').value));
+
+  } catch (error) {
+
+    $('feedback').textContent = error.message;
+
+  }
+
+});
+
+document.querySelectorAll('[data-az]').forEach(button => {
+
+  button.addEventListener('click', () => {
+
+    const azimut = Number(button.dataset.az);
+
+    $('az').value = azimut;
+
+    $('azVal').textContent = azimut;
+
+    try {
+
+      jouerSon(azimut);
+
+    } catch (error) {
+
+      $('feedback').textContent = error.message;
+
+    }
+
+  });
+
+});
+
+/* ==========================================
+   8. JEU DE LOCALISATION
+========================================== */
+
+let mystere = null;
+
+let essais = 0;
+
+let bons = 0;
+
+let jeuEnCours = false;
+
+const DIRECTIONS = [-60, 0, 60];
+
+function nomDirection(azimut) {
+
+  if (azimut < 0) return 'gauche';
+
+  if (azimut > 0) return 'droite';
+
+  return 'devant';
+
+}
+
+$('bJeu').addEventListener('click', () => {
+
+  try {
+
+    mystere = DIRECTIONS[
+      Math.floor(Math.random() * DIRECTIONS.length)
+    ];
+
+    jeuEnCours = true;
+
+    $('feedback').textContent =
+      'Écoutez le son et choisissez une direction.';
+
+    jouerSon(mystere);
+
+  } catch (error) {
+
+    mystere = null;
+
+    jeuEnCours = false;
+
+    $('feedback').textContent = error.message;
+
+  }
+
+});
+
+/* ==========================================
+   9. VALIDATION DES RÉPONSES
+========================================== */
+
+document.querySelectorAll('[data-rep]').forEach(button => {
+
+  button.addEventListener('click', () => {
+
+    if (!jeuEnCours || mystere === null) {
+
+      $('feedback').textContent =
+        'Lancez un nouveau son mystère.';
+
+      return;
+
+    }
+
+    const reponse = Number(button.dataset.rep);
+
+    essais++;
+
+    const correct = reponse === mystere;
+
+    if (correct) {
+
+      bons++;
+
+      $('feedback').textContent = 'Bonne réponse !';
+
+    } else {
+
+      $('feedback').textContent =
+        'Mauvaise réponse. Le son était à ' +
+        nomDirection(mystere) + '.';
+
+    }
+
+    $('scoreJeu').textContent =
+      'Score : ' + bons + ' / ' + essais;
+
+    $('totalTests').textContent = essais;
+
+    $('totalBons').textContent = bons;
+
+    $('precision').textContent =
+      Math.round((bons / essais) * 100) + ' %';
+
+    mystere = null;
+
+    jeuEnCours = false;
+
+  });
+
+});
+
+/* ==========================================
+   10. C. SYNCHRONISATION
+========================================== */
+
+$('decalage').addEventListener('input', e => {
+
+  $('dec').textContent = e.target.value;
+
+});
+
+let syncTimer = null;
+
+$('bSync').addEventListener('click', () => {
+
+  const decalage = Number($('decalage').value);
+
+  clearTimeout(syncTimer);
+
+  $('syncInfo').textContent =
+    'Test en cours : son et flash immédiats, vibration après ' +
+    decalage + ' ms.';
+
+  // Son à T0
+  try {
+
+    jouerSon(0);
+
+  } catch (error) {
+
+    $('syncInfo').textContent = error.message;
+
+  }
+
+  // Flash à T0
+  flash('#00c853', 200);
+
+  // Vibration à T0 + décalage
+  syncTimer = setTimeout(() => {
+
+    vibrer(60);
+
+    $('syncInfo').textContent =
+      'Test déclenché avec un décalage de ' +
+      decalage + ' ms.';
+
+  }, decalage);
+
+});
+
+/* ==========================================
+   11. RÉINITIALISATION
+========================================== */
+
+$('reset').addEventListener('click', () => {
+
+  essais = 0;
+
+  bons = 0;
+
+  mystere = null;
+
+  jeuEnCours = false;
+
+  clearTimeout(syncTimer);
+
+  $('scoreJeu').textContent = 'Score : 0 / 0';
+
+  $('totalTests').textContent = '0';
+
+  $('totalBons').textContent = '0';
+
+  $('precision').textContent = '0 %';
+
+  $('feedback').textContent = '';
+
+  $('syncInfo').textContent = 'En attente du test.';
+
+});
+
+</script>
+
+</body>
+</html>
